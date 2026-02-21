@@ -1,0 +1,20 @@
+package com.vakildiary.app.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.vakildiary.app.data.local.entities.HearingHistoryEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface HearingHistoryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHearing(hearing: HearingHistoryEntity)
+
+    @Query("SELECT * FROM hearing_history WHERE case_id = :caseId ORDER BY hearingDate DESC")
+    fun getHearingsByCaseId(caseId: String): Flow<List<HearingHistoryEntity>>
+
+    @Query("SELECT * FROM hearing_history WHERE hearingId = :hearingId LIMIT 1")
+    fun getHearingById(hearingId: String): Flow<HearingHistoryEntity?>
+}
