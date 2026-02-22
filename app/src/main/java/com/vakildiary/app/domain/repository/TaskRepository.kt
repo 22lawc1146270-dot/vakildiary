@@ -10,6 +10,7 @@ interface TaskRepository {
     fun getPendingTasksByCaseId(caseId: String): Flow<Result<List<Task>>>
     fun getCompletedTasksByCaseId(caseId: String): Flow<Result<List<Task>>>
     fun getOverdueTasks(now: Long): Flow<Result<List<Task>>>
+    fun getOverdueTasksByCaseId(caseId: String, now: Long): Flow<Result<List<Task>>>
     fun getTaskById(id: String): Flow<Result<Task>>
     suspend fun deleteTask(task: Task): Result<Unit>
 }

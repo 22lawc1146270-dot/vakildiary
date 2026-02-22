@@ -16,6 +16,9 @@ interface PaymentDao {
     @Query("SELECT * FROM payments WHERE caseId = :caseId ORDER BY paymentDate DESC")
     fun getPaymentsByCaseId(caseId: String): Flow<List<PaymentEntity>>
 
+    @Query("SELECT * FROM payments")
+    fun getAllPayments(): Flow<List<PaymentEntity>>
+
     @Delete
     suspend fun deletePayment(payment: PaymentEntity)
 }

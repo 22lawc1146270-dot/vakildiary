@@ -19,8 +19,22 @@ interface CaseDao {
     @Query("SELECT * FROM cases WHERE caseId = :caseId LIMIT 1")
     fun getCaseById(caseId: String): Flow<CaseEntity?>
 
+    @Query("SELECT * FROM cases WHERE caseNumber = :caseNumber AND isArchived = 0 LIMIT 1")
+    suspend fun getCaseByNumber(caseNumber: String): CaseEntity?
+
     @Query("SELECT * FROM cases WHERE isArchived = 0 ORDER BY nextHearingDate ASC")
     fun getAllActiveCases(): Flow<List<CaseEntity>>
+
+    @Query("SELECT * FROM cases WHERE isECourtTracked = 1 AND isArchived = 0")
+    suspend fun getECourtTrackedCases(): List<CaseEntity>
+
+    @Query("SELECT * FROM cases WHERE nextHearingDate BETWEEN :startMillis AND :endMillis AND isArchived = 0")
+    suspend fun getCasesWithHearingsBetween(startMillis: Long, endMillis: Long): List<CaseEntity>
+
+    @Query(
+        "SELECT * FROM cases WHERE DATE(nextHearingDate/1000,'unixepoch') = DATE('now') AND isArchived = 0"
+    )
+    fun getCasesWithHearingToday(): Flow<List<CaseEntity>>
 
     @Query(
         """

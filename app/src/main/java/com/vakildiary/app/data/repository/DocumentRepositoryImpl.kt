@@ -27,12 +27,27 @@ class DocumentRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getAllDocuments(): Flow<Result<List<Document>>> {
+        return documentDao.getAllDocuments().map { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }
+    }
+
     override suspend fun deleteDocument(document: Document): Result<Unit> {
         return try {
             documentDao.deleteDocument(document.toEntity())
             Result.Success(Unit)
         } catch (t: Throwable) {
             Result.Error(message = "Failed to delete document", throwable = t)
+        }
+    }
+
+    override suspend fun updateDocument(document: Document): Result<Unit> {
+        return try {
+            documentDao.updateDocument(document.toEntity())
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to update document", throwable = t)
         }
     }
 

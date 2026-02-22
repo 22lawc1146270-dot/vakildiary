@@ -49,14 +49,19 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.security.crypto)
 
     // Room
     implementation(libs.room.runtime)
@@ -83,11 +88,23 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.proto)
+    implementation(libs.androidx.datastore.preferences)
 
     // Auth & Drive
     implementation(libs.google.auth.credential.manager)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.google.auth.play.services)
     implementation(libs.google.api.drive)
+
+    constraints {
+        implementation("androidx.credentials:credentials:1.2.1") {
+            version { strictly("1.2.1") }
+        }
+        implementation("androidx.credentials:credentials-play-services-auth:1.2.1") {
+            version { strictly("1.2.1") }
+        }
+    }
 
     // PDF Generation
     implementation(libs.itextpdf)

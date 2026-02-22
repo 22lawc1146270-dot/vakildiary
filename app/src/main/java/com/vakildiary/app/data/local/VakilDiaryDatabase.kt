@@ -1,6 +1,8 @@
 package com.vakildiary.app.data.local
 
 import androidx.room.Database
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.RoomDatabase
 import com.vakildiary.app.data.local.dao.CaseDao
 import com.vakildiary.app.data.local.dao.DocumentDao
@@ -24,7 +26,7 @@ import com.vakildiary.app.data.local.entities.TaskEntity
         DocumentEntity::class,
         MeetingEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class VakilDiaryDatabase : RoomDatabase() {
@@ -34,4 +36,14 @@ abstract class VakilDiaryDatabase : RoomDatabase() {
     abstract fun paymentDao(): PaymentDao
     abstract fun documentDao(): DocumentDao
     abstract fun meetingDao(): MeetingDao
+
+    companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE hearing_history ADD COLUMN voiceNotePath TEXT"
+                )
+            }
+        }
+    }
 }

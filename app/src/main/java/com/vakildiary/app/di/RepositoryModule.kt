@@ -2,13 +2,17 @@ package com.vakildiary.app.di
 
 import com.vakildiary.app.data.repository.CaseRepositoryImpl
 import com.vakildiary.app.data.repository.DocumentRepositoryImpl
+import com.vakildiary.app.data.repository.ECourtRepositoryImpl
 import com.vakildiary.app.data.repository.HearingRepositoryImpl
 import com.vakildiary.app.data.repository.MeetingRepositoryImpl
 import com.vakildiary.app.data.repository.PaymentRepositoryImpl
+import com.vakildiary.app.data.repository.SCJudgmentRepositoryImpl
 import com.vakildiary.app.data.repository.TaskRepositoryImpl
 import com.vakildiary.app.domain.repository.CaseRepository
 import com.vakildiary.app.domain.repository.DocumentRepository
+import com.vakildiary.app.domain.repository.ECourtRepository
 import com.vakildiary.app.domain.repository.HearingRepository
+import com.vakildiary.app.domain.repository.SCJudgmentRepository
 import com.vakildiary.app.domain.repository.MeetingRepository
 import com.vakildiary.app.domain.repository.PaymentRepository
 import com.vakildiary.app.domain.repository.TaskRepository
@@ -56,4 +60,16 @@ abstract class RepositoryModule {
     abstract fun bindMeetingRepository(
         impl: MeetingRepositoryImpl
     ): MeetingRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindECourtRepository(
+        impl: ECourtRepositoryImpl
+    ): ECourtRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSCJudgmentRepository(
+        impl: SCJudgmentRepositoryImpl
+    ): SCJudgmentRepository
 }

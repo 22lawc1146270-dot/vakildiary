@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.vakildiary.app.data.local.entities.DocumentEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -22,6 +23,12 @@ interface DocumentDao {
     )
     fun getDocumentsByCaseId(caseId: String?): Flow<List<DocumentEntity>>
 
+    @Query("SELECT * FROM documents ORDER BY createdAt DESC")
+    fun getAllDocuments(): Flow<List<DocumentEntity>>
+
     @Delete
     suspend fun deleteDocument(document: DocumentEntity)
+
+    @Update
+    suspend fun updateDocument(document: DocumentEntity)
 }

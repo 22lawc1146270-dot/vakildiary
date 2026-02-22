@@ -16,6 +16,9 @@ interface MeetingDao {
     @Query("SELECT * FROM meetings WHERE caseId = :caseId ORDER BY meetingDate ASC")
     fun getMeetingsByCaseId(caseId: String): Flow<List<MeetingEntity>>
 
+    @Query("SELECT * FROM meetings WHERE meetingDate BETWEEN :start AND :end ORDER BY meetingDate ASC")
+    suspend fun getMeetingsBetween(start: Long, end: Long): List<MeetingEntity>
+
     @Delete
     suspend fun deleteMeeting(meeting: MeetingEntity)
 }

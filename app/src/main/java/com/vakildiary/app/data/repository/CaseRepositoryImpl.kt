@@ -36,6 +36,14 @@ class CaseRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCaseByNumber(caseNumber: String): Result<Case?> {
+        return try {
+            Result.Success(caseDao.getCaseByNumber(caseNumber)?.toDomain())
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to fetch case", throwable = t)
+        }
+    }
+
     override fun getAllActiveCases(): Flow<Result<List<Case>>> {
         return caseDao.getAllActiveCases().map { entities ->
             Result.Success(entities.map { it.toDomain() })

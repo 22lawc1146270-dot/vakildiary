@@ -7,5 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface DocumentRepository {
     suspend fun insertDocument(document: Document): Result<Unit>
     fun getDocumentsByCaseId(caseId: String?): Flow<Result<List<Document>>>
+    fun getAllDocuments(): Flow<Result<List<Document>>>
     suspend fun deleteDocument(document: Document): Result<Unit>
+    suspend fun updateDocument(document: Document): Result<Unit>
 }

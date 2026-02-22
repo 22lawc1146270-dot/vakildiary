@@ -17,4 +17,7 @@ interface HearingHistoryDao {
 
     @Query("SELECT * FROM hearing_history WHERE hearingId = :hearingId LIMIT 1")
     fun getHearingById(hearingId: String): Flow<HearingHistoryEntity?>
+
+    @Query("SELECT DISTINCT case_id FROM hearing_history WHERE DATE(hearingDate/1000,'unixepoch') = DATE('now')")
+    fun getCaseIdsWithHearingToday(): Flow<List<String>>
 }

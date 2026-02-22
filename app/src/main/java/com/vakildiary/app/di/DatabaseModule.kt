@@ -30,7 +30,9 @@ object DatabaseModule {
             context,
             VakilDiaryDatabase::class.java,
             DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(VakilDiaryDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides

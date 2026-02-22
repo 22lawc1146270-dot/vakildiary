@@ -48,6 +48,12 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getOverdueTasksByCaseId(caseId: String, now: Long): Flow<Result<List<Task>>> {
+        return taskDao.getOverdueTasksByCaseId(caseId, now).map { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }
+    }
+
     override fun getTaskById(id: String): Flow<Result<Task>> {
         return taskDao.getTaskById(id).map { entity ->
             entity?.let { Result.Success(it.toDomainModel()) }
