@@ -12,6 +12,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -32,7 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -211,7 +214,7 @@ private fun CaseDropdown(
     onSelected: (Case) -> Unit
 ) {
     val selectedCase = cases.firstOrNull { it.caseId == selectedCaseId }
-    androidx.compose.material3.ExposedDropdownMenuBox(
+    ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { if (enabled) onExpandedChange(!expanded) },
         modifier = Modifier.fillMaxWidth()
@@ -221,19 +224,19 @@ private fun CaseDropdown(
             onValueChange = {},
             readOnly = true,
             label = { Text(text = "Case") },
-            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth(),
             enabled = enabled
         )
 
-        androidx.compose.material3.ExposedDropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {
             cases.forEach { item ->
-                androidx.compose.material3.DropdownMenuItem(
+                DropdownMenuItem(
                     text = { Text(text = "${item.caseName} • ${item.caseNumber}") },
                     onClick = { onSelected(item) }
                 )
@@ -249,7 +252,7 @@ private fun TaskTypeDropdown(
     onSelected: (TaskType) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    androidx.compose.material3.ExposedDropdownMenuBox(
+    ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded },
         modifier = Modifier.fillMaxWidth()
@@ -259,18 +262,18 @@ private fun TaskTypeDropdown(
             onValueChange = {},
             readOnly = true,
             label = { Text(text = "Task Type") },
-            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth()
         )
 
-        androidx.compose.material3.ExposedDropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
             TaskType.values().forEach { type ->
-                androidx.compose.material3.DropdownMenuItem(
+                DropdownMenuItem(
                     text = { Text(text = taskTypeLabel(type)) },
                     onClick = {
                         onSelected(type)

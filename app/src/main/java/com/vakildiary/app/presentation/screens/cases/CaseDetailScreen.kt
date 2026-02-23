@@ -2,13 +2,23 @@ package com.vakildiary.app.presentation.screens.cases
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -17,12 +27,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,6 +75,7 @@ fun CaseDetailScreen(
     val tabs = listOf("Overview", "History", "Tasks", "Fees", "Documents", "Meetings")
     var selectedTab by remember { mutableIntStateOf(0) }
     val uiState by viewModel.uiState(caseId).collectAsStateWithLifecycle()
+    val advocateName by viewModel.advocateName.collectAsStateWithLifecycle()
     val exportViewModel: CaseExportViewModel = hiltViewModel()
     val summaryState by exportViewModel.summaryState.collectAsStateWithLifecycle()
     val historyState by exportViewModel.historyState.collectAsStateWithLifecycle()
@@ -117,10 +131,12 @@ fun CaseDetailScreen(
                             caseName = state.case.caseName,
                             caseNumber = state.case.caseNumber,
                             courtName = state.case.courtName,
+                            clientName = state.case.clientName,
                             nextHearingDate = state.case.nextHearingDate,
                             caseStage = state.case.caseStage,
                             agreedFees = state.case.totalAgreedFees ?: 0.0,
                             totalReceived = state.payments.sumOf { it.amount },
+                            advocateName = advocateName ?: "Counsel",
                             onAddHearing = onAddHearing,
                             onAddTask = { onAddTask(caseId) },
                             onAddPayment = onAddPayment,
@@ -130,6 +146,11 @@ fun CaseDetailScreen(
                             historyState = historyState,
                             onExportSummary = { exportViewModel.exportSummary(state.case) },
                             onExportHistory = { exportViewModel.exportHistory(state.case, state.hearings) },
+                            onUpdateNextHearing = { newDate ->
+                                scope.launch {
+                                    viewModel.updateCase(state.case.copy(nextHearingDate = newDate))
+                                }
+                            },
                             onStageChanged = { newStage ->
                                 scope.launch {
                                     viewModel.updateCase(state.case.copy(caseStage = newStage))
@@ -141,7 +162,13 @@ fun CaseDetailScreen(
                                 }
                             }
                         )
-                        1 -> HistoryTab(hearings = state.hearings)
+                        1 -> HistoryTab(
+                            caseName = state.case.caseName,
+                            clientName = state.case.clientName,
+                            courtName = state.case.courtName,
+                            advocateName = advocateName ?: "Counsel",
+                            hearings = state.hearings
+                        )
                         2 -> TasksTab(
                             caseId = caseId,
                             onAddTask = { onAddTask(caseId) }
@@ -163,15 +190,18 @@ fun CaseDetailScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OverviewTab(
     caseName: String,
     caseNumber: String,
     courtName: String,
+    clientName: String,
     nextHearingDate: Long?,
     caseStage: CaseStage,
     agreedFees: Double,
     totalReceived: Double,
+    advocateName: String,
     onAddHearing: () -> Unit,
     onAddTask: () -> Unit,
     onAddPayment: () -> Unit,
@@ -181,6 +211,7 @@ private fun OverviewTab(
     historyState: CaseExportUiState,
     onExportSummary: () -> Unit,
     onExportHistory: () -> Unit,
+    onUpdateNextHearing: (Long) -> Unit,
     onStageChanged: (CaseStage) -> Unit,
     onArchive: () -> Unit
 ) {
@@ -190,6 +221,8 @@ private fun OverviewTab(
     } else {
         0f
     }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var nextDateError by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -200,7 +233,38 @@ private fun OverviewTab(
         Text(text = caseName, style = MaterialTheme.typography.titleLarge)
         Text(text = "Case No: $caseNumber")
         Text(text = "Court: $courtName")
-        Text(text = "Next Hearing: ${formatDate(nextHearingDate)}")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "Next Hearing: ${formatDate(nextHearingDate)}")
+            Button(onClick = { showDatePicker = true }) {
+                Text(text = "Edit")
+            }
+            if (nextHearingDate != null) {
+                val context = LocalContext.current
+                IconButton(onClick = {
+                    ShareUtils.shareHearingDateText(
+                        context = context,
+                        clientName = clientName,
+                        caseName = caseName,
+                        date = formatDate(nextHearingDate),
+                        court = courtName,
+                        advocateName = advocateName
+                    )
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share Hearing Date",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+        if (!nextDateError.isNullOrBlank()) {
+            Text(text = nextDateError.orEmpty(), color = MaterialTheme.colorScheme.error)
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "Stage:")
@@ -253,13 +317,37 @@ private fun OverviewTab(
         }
         LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
     }
+
+    if (showDatePicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = nextHearingDate)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val selected = pickerState.selectedDateMillis
+                    if (selected != null && selected >= System.currentTimeMillis()) {
+                        nextDateError = null
+                        onUpdateNextHearing(selected)
+                        showDatePicker = false
+                    } else {
+                        nextDateError = "Next hearing date must be in the future"
+                    }
+                }) { Text(text = "OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel") }
+            }
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CaseStageDropdown(selected: CaseStage, onSelected: (CaseStage) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    androidx.compose.material3.ExposedDropdownMenuBox(
+    ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded }
     ) {
@@ -269,15 +357,15 @@ private fun CaseStageDropdown(selected: CaseStage, onSelected: (CaseStage) -> Un
             readOnly = true,
             modifier = Modifier.menuAnchor(),
             trailingIcon = {
-                androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             }
         )
-        androidx.compose.material3.ExposedDropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
             CaseStage.values().forEach { stage ->
-                androidx.compose.material3.DropdownMenuItem(
+                DropdownMenuItem(
                     text = { Text(text = stage.name) },
                     onClick = {
                         onSelected(stage)
@@ -290,18 +378,47 @@ private fun CaseStageDropdown(selected: CaseStage, onSelected: (CaseStage) -> Un
 }
 
 @Composable
-private fun HistoryTab(hearings: List<HearingHistory>) {
+private fun HistoryTab(
+    caseName: String,
+    clientName: String,
+    courtName: String,
+    advocateName: String,
+    hearings: List<HearingHistory>
+) {
     if (hearings.isEmpty()) {
         Text(text = "No hearing history yet", modifier = Modifier.padding(16.dp))
         return
     }
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(hearings, key = { it.hearingId }) { hearing ->
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(text = formatDate(hearing.hearingDate), style = MaterialTheme.typography.titleMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(text = formatDate(hearing.hearingDate), style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = {
+                        ShareUtils.shareHearingDateText(
+                            context = context,
+                            clientName = clientName,
+                            caseName = caseName,
+                            date = formatDate(hearing.hearingDate),
+                            court = courtName,
+                            advocateName = advocateName
+                        )
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share Hearing Date",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 Text(text = hearing.purpose, style = MaterialTheme.typography.labelLarge)
                 Text(text = hearing.outcome ?: "No outcome recorded", style = MaterialTheme.typography.bodyMedium)
                 hearing.nextDateGiven?.let {

@@ -3,6 +3,7 @@ package com.vakildiary.app.presentation.screens.judgments
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,11 +35,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.presentation.viewmodels.JudgmentDownloadUiState
@@ -56,6 +60,8 @@ fun JudgmentSearchScreen(
     var year by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
     var selectedCaseId by remember { mutableStateOf<String?>(null) }
+    var previewItem by remember { mutableStateOf<JudgmentSearchResult?>(null) }
+    var showPreview by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
@@ -65,10 +71,10 @@ fun JudgmentSearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Judgment Search") },
+                title = { Text(text = stringResource(id = R.string.judgment_search_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back))
                     }
                 }
             )
@@ -84,21 +90,21 @@ fun JudgmentSearchScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text(text = "Search by case name, citation, bench, keyword") },
+                label = { Text(text = stringResource(id = R.string.judgment_search_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             OutlinedTextField(
                 value = year,
                 onValueChange = { year = it },
-                label = { Text(text = "Year") },
+                label = { Text(text = stringResource(id = R.string.judgment_year)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
 
             if (!isOnline) {
                 Text(
-                    text = "No internet connection. Judgment search unavailable.",
+                    text = stringResource(id = R.string.judgment_offline),
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -123,7 +129,7 @@ fun JudgmentSearchScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = isOnline
             ) {
-                Text(text = "Search")
+                Text(text = stringResource(id = R.string.judgment_search_button))
             }
 
             when (downloadState) {
@@ -150,7 +156,7 @@ fun JudgmentSearchScreen(
                 )
                 is JudgmentSearchUiState.Success -> {
                     if (state.results.isNotEmpty()) {
-                        Text(text = "Results", style = MaterialTheme.typography.titleMedium)
+                        Text(text = stringResource(id = R.string.judgment_results), style = MaterialTheme.typography.titleMedium)
                     }
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 24.dp),
@@ -160,12 +166,26 @@ fun JudgmentSearchScreen(
                             JudgmentRow(
                                 item = item,
                                 canDownload = isOnline,
-                                onDownload = { viewModel.download(item, selectedCaseId) }
+                                onDownload = { viewModel.download(item, selectedCaseId) },
+                                onPreview = {
+                                    previewItem = item
+                                    showPreview = true
+                                }
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    if (showPreview && previewItem != null) {
+        ModalBottomSheet(onDismissRequest = { showPreview = false }) {
+            JudgmentPreview(
+                item = previewItem!!,
+                canDownload = isOnline,
+                onDownload = { viewModel.download(previewItem!!, selectedCaseId) }
+            )
         }
     }
 }
@@ -174,7 +194,8 @@ fun JudgmentSearchScreen(
 private fun JudgmentRow(
     item: JudgmentSearchResult,
     canDownload: Boolean,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onPreview: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -182,13 +203,67 @@ private fun JudgmentRow(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(text = item.title, style = MaterialTheme.typography.titleMedium)
-            Button(
-                onClick = onDownload,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = canDownload
-            ) {
-                Text(text = "Download Judgment")
+            val meta = listOfNotNull(
+                item.citation?.takeIf { it.isNotBlank() },
+                item.bench?.takeIf { it.isNotBlank() }
+            ).joinToString(" • ")
+            if (meta.isNotBlank()) {
+                Text(text = meta, style = MaterialTheme.typography.bodySmall)
             }
+            item.dateOfJudgment?.let { date ->
+                Text(
+                    text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onPreview,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(text = stringResource(id = R.string.judgment_preview_button))
+                }
+                Button(
+                    onClick = onDownload,
+                    modifier = Modifier.weight(1f),
+                    enabled = canDownload
+                ) {
+                    Text(text = stringResource(id = R.string.judgment_download_button))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun JudgmentPreview(
+    item: JudgmentSearchResult,
+    canDownload: Boolean,
+    onDownload: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(text = item.title, style = MaterialTheme.typography.titleMedium)
+        Text(text = "${stringResource(id = R.string.judgment_id)}: ${item.judgmentId}")
+        if (!item.citation.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.judgment_citation)}: ${item.citation}")
+        }
+        if (!item.bench.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
+        }
+        item.dateOfJudgment?.let { date ->
+            Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
+        }
+        Button(
+            onClick = onDownload,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = canDownload
+        ) {
+            Text(text = stringResource(id = R.string.judgment_download_button))
         }
     }
 }
@@ -209,10 +284,11 @@ private fun CaseDropdown(
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
-            value = selected?.let { "${it.caseName} • ${it.caseNumber}" } ?: "No case (store in Documents)",
+            value = selected?.let { "${it.caseName} • ${it.caseNumber}" }
+                ?: stringResource(id = R.string.judgment_no_case),
             onValueChange = {},
             readOnly = true,
-            label = { Text(text = "Attach to Case") },
+            label = { Text(text = stringResource(id = R.string.judgment_attach_case)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
@@ -224,7 +300,7 @@ private fun CaseDropdown(
             onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
-                text = { Text(text = "No case") },
+                text = { Text(text = stringResource(id = R.string.judgment_no_case_option)) },
                 onClick = { onSelected(null); onExpandedChange(false) }
             )
             cases.forEach { caseItem ->
@@ -238,4 +314,11 @@ private fun CaseDropdown(
             }
         }
     }
+}
+
+private fun formatDate(epochMillis: Long): String {
+    val date = java.time.Instant.ofEpochMilli(epochMillis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+    return date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 }

@@ -1,6 +1,7 @@
 package com.vakildiary.app.data.documents
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import android.webkit.MimeTypeMap
 import androidx.security.crypto.EncryptedFile
 import androidx.security.crypto.MasterKey
@@ -19,7 +20,7 @@ import javax.inject.Singleton
 
 @Singleton
 class DocumentStorageManager @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) : DocumentStorage {
 
     private val masterKey: MasterKey by lazy {

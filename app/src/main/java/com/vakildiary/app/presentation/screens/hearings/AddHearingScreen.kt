@@ -12,6 +12,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -33,7 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -61,6 +64,7 @@ fun AddHearingScreen(
     var dateMillis by remember { mutableStateOf<Long?>(null) }
     var timeText by remember { mutableStateOf("10:00") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) { viewModel.loadCases() }
@@ -140,18 +144,27 @@ fun AddHearingScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            if (!validationError.isNullOrBlank()) {
+                Text(text = validationError.orEmpty(), color = MaterialTheme.colorScheme.error)
+            }
+
             Button(
                 onClick = {
                     val case = selectedCase ?: return@Button
                     val date = dateMillis ?: return@Button
                     val minutes = reminderMinutes.toIntOrNull() ?: 0
                     val hearingAt = combineDateAndTime(date, timeText)
+                    if (hearingAt < System.currentTimeMillis()) {
+                        validationError = "Hearing date must be in the future"
+                        return@Button
+                    }
                     viewModel.saveHearing(
                         caseId = case.caseId,
                         hearingDateMillis = hearingAt,
                         purpose = purpose,
                         reminderMinutesBefore = minutes
                     )
+                    validationError = null
                     val trigger = hearingAt - minutes * 60_000L
                     NotificationScheduler.scheduleHearingReminder(context, case.caseId, trigger)
                 },
@@ -192,7 +205,7 @@ private fun CaseDropdown(
     var expanded by remember { mutableStateOf(false) }
     val label = selected?.caseName.orEmpty()
 
-    androidx.compose.material3.ExposedDropdownMenuBox(
+    ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded },
         modifier = Modifier.fillMaxWidth()
@@ -202,18 +215,18 @@ private fun CaseDropdown(
             onValueChange = {},
             readOnly = true,
             label = { Text(text = "Select Case") },
-            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth()
         )
 
-        androidx.compose.material3.ExposedDropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
             cases.forEach { case ->
-                androidx.compose.material3.DropdownMenuItem(
+                DropdownMenuItem(
                     text = { Text(text = case.caseName) },
                     onClick = {
                         onSelected(case)

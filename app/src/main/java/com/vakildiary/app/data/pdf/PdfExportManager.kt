@@ -1,6 +1,7 @@
 package com.vakildiary.app.data.pdf
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.itextpdf.text.Document
 import com.itextpdf.text.Font
 import com.itextpdf.text.Paragraph
@@ -22,7 +23,7 @@ import javax.inject.Singleton
 
 @Singleton
 class PdfExportManager @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     suspend fun exportCaseSummary(case: Case): Result<File> = withContext(Dispatchers.IO) {
         val file = createOutputFile("case_summary_${case.caseNumber}.pdf")
