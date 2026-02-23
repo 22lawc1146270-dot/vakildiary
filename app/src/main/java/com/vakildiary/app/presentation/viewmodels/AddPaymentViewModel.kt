@@ -16,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,6 +44,8 @@ class AddPaymentViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<AddPaymentUiState>(AddPaymentUiState.Success(false))
     val uiState: StateFlow<AddPaymentUiState> = _uiState.asStateFlow()
+    private val _warning = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val warning = _warning
 
     val outstandingAmount: StateFlow<Double?> = combine(
         getCaseByIdUseCase(caseId),
@@ -90,8 +93,7 @@ class AddPaymentViewModel @Inject constructor(
 
         val outstanding = outstandingAmount.value
         if (outstanding != null && amount > outstanding) {
-            _uiState.value = AddPaymentUiState.Error("Amount exceeds outstanding balance")
-            return
+            _warning.tryEmit("Amount exceeds outstanding balance")
         }
 
         viewModelScope.launch {

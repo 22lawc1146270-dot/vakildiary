@@ -2,7 +2,6 @@ package com.vakildiary.app.data.backup
 
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStoreFile
-import com.google.api.services.drive.model.File
 import com.vakildiary.app.core.Result
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class RestoreManager @Inject constructor(
     private val context: Context,
-    private val driveBackupManager: DriveBackupManager
+    private val driveBackupManager: DriveBackupManager,
+    private val driveAuthManager: DriveAuthManager
 ) {
     suspend fun hasLocalData(): Boolean = withContext(Dispatchers.IO) {
         val dbFile = context.getDatabasePath(DATABASE_NAME)
@@ -27,6 +27,10 @@ class RestoreManager @Inject constructor(
     }
 
     suspend fun hasRemoteBackup(): Result<Boolean> = withContext(Dispatchers.IO) {
+        when (val authResult = driveAuthManager.ensureInitialized()) {
+            is Result.Error -> return@withContext Result.Error(authResult.message, authResult.throwable)
+            is Result.Success -> Unit
+        }
         val listResult = driveBackupManager.listBackups(BACKUP_QUERY)
         return@withContext when (listResult) {
             is Result.Success -> Result.Success(listResult.data.isNotEmpty())
@@ -35,6 +39,10 @@ class RestoreManager @Inject constructor(
     }
 
     suspend fun restoreLatestBackup(): Result<Unit> = withContext(Dispatchers.IO) {
+        when (val authResult = driveAuthManager.ensureInitialized()) {
+            is Result.Error -> return@withContext Result.Error(authResult.message, authResult.throwable)
+            is Result.Success -> Unit
+        }
         val listResult = driveBackupManager.listBackups(BACKUP_QUERY)
         val files = when (listResult) {
             is Result.Success -> listResult.data

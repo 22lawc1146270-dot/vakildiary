@@ -3,6 +3,8 @@ package com.vakildiary.app.data.backup
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
+import com.vakildiary.app.domain.model.BackupStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -21,11 +23,33 @@ import javax.inject.Singleton
 @Singleton
 class ManualBackupManager @Inject constructor(
     private val context: Context,
-    private val driveBackupManager: DriveBackupManager
+    private val driveBackupManager: DriveBackupManager,
+    private val driveAuthManager: DriveAuthManager,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) {
     suspend fun backupNow(): Result<String> = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+        when (val authResult = driveAuthManager.ensureInitialized()) {
+            is Result.Error -> {
+                userPreferencesRepository.recordBackupResult(
+                    status = BackupStatus.ERROR,
+                    message = authResult.message,
+                    sizeBytes = null,
+                    timestampMillis = timestamp
+                )
+                return@withContext Result.Error(authResult.message, authResult.throwable)
+            }
+            is Result.Success -> Unit
+        }
+
         val dbFile = context.getDatabasePath(DATABASE_NAME)
         if (!dbFile.exists()) {
+            userPreferencesRepository.recordBackupResult(
+                status = BackupStatus.ERROR,
+                message = "Database file not found",
+                sizeBytes = null,
+                timestampMillis = timestamp
+            )
             return@withContext Result.Error("Database file not found")
         }
 
@@ -33,13 +57,41 @@ class ManualBackupManager @Inject constructor(
         val dataStoreFile = context.preferencesDataStoreFile(DATASTORE_NAME)
 
         val backupFile = createBackupZip(dbFile, documentsDir, dataStoreFile)
-            ?: return@withContext Result.Error("Failed to create backup file")
+            ?: run {
+                userPreferencesRepository.recordBackupResult(
+                    status = BackupStatus.ERROR,
+                    message = "Failed to create backup file",
+                    sizeBytes = null,
+                    timestampMillis = timestamp
+                )
+                return@withContext Result.Error("Failed to create backup file")
+            }
 
-        return@withContext driveBackupManager.uploadBackup(
+        val sizeBytes = backupFile.length()
+        val result = driveBackupManager.uploadBackup(
             file = backupFile,
             mimeType = "application/zip",
             folderId = null
         )
+        when (result) {
+            is Result.Success -> {
+                userPreferencesRepository.recordBackupResult(
+                    status = BackupStatus.SUCCESS,
+                    message = "Backup uploaded",
+                    sizeBytes = sizeBytes,
+                    timestampMillis = timestamp
+                )
+            }
+            is Result.Error -> {
+                userPreferencesRepository.recordBackupResult(
+                    status = BackupStatus.ERROR,
+                    message = result.message,
+                    sizeBytes = sizeBytes,
+                    timestampMillis = timestamp
+                )
+            }
+        }
+        result
     }
 
     private fun createBackupZip(

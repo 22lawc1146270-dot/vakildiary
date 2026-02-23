@@ -2,18 +2,27 @@ package com.vakildiary.app.presentation.screens.more
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,6 +38,7 @@ import com.vakildiary.app.presentation.theme.ThemeMode
 import com.vakildiary.app.presentation.theme.LanguageMode
 import androidx.compose.ui.res.stringResource
 import com.vakildiary.app.R
+import androidx.core.content.ContextCompat
 
 @Composable
 fun MoreScreen(
@@ -38,15 +48,35 @@ fun MoreScreen(
     appLockViewModel: AppLockViewModel = hiltViewModel(),
     deltaSyncViewModel: DeltaSyncViewModel = hiltViewModel(),
     onOpenECourt: () -> Unit = {},
-    onOpenJudgments: () -> Unit = {}
+    onOpenJudgments: () -> Unit = {},
+    onOpenBackupStatus: () -> Unit = {},
+    onOpenUpcomingMeetings: () -> Unit = {}
 ) {
     val userEmail by authViewModel.userEmail.collectAsStateWithLifecycle()
     val backupState by backupViewModel.uiState.collectAsStateWithLifecycle()
     val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
     val languageMode by settingsViewModel.languageMode.collectAsStateWithLifecycle()
+    val advocateName by settingsViewModel.advocateName.collectAsStateWithLifecycle()
     val isAppLockEnabled by appLockViewModel.isAppLockEnabled.collectAsStateWithLifecycle()
     val deltaSyncCount by deltaSyncViewModel.syncCount.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var notificationsGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsGranted = granted
+    }
 
     Column(
         modifier = Modifier
@@ -62,8 +92,28 @@ fun MoreScreen(
         ) {
             Text(text = stringResource(id = R.string.sign_out))
         }
+        if (userEmail.isNullOrBlank()) {
+            PermissionCard(
+                title = "Google Drive backup needs sign-in",
+                actionLabel = "Grant permission",
+                onAction = { authViewModel.resumeSignIn() }
+            )
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
+            PermissionCard(
+                title = "Notifications are off",
+                actionLabel = "Grant permission",
+                onAction = { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+            )
+        }
 
         Text(text = stringResource(id = R.string.settings), style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = advocateName ?: "",
+            onValueChange = { settingsViewModel.setAdvocateName(it) },
+            label = { Text(text = "Advocate Name (for sharing)") },
+            modifier = Modifier.fillMaxWidth()
+        )
         Text(text = "Integrations", style = MaterialTheme.typography.titleMedium)
         Button(
             onClick = onOpenECourt,
@@ -76,6 +126,20 @@ fun MoreScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = "Judgment Search")
+        }
+
+        Button(
+            onClick = onOpenBackupStatus,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = stringResource(id = R.string.backup_status))
+        }
+
+        Button(
+            onClick = onOpenUpcomingMeetings,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Upcoming Meetings")
         }
 
         Button(
@@ -158,6 +222,24 @@ fun MoreScreen(
                 color = MaterialTheme.colorScheme.error
             )
             else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun PermissionCard(
+    title: String,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(text = title, style = MaterialTheme.typography.bodyMedium)
+        Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) {
+            Text(text = actionLabel)
         }
     }
 }

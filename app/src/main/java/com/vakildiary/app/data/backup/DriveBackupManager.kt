@@ -17,6 +17,8 @@ import java.io.File as IoFile
 class DriveBackupManager @Inject constructor() {
     private var drive: Drive? = null
 
+    fun isInitialized(): Boolean = drive != null
+
     fun initialize(requestInitializer: HttpRequestInitializer, applicationName: String) {
         val transport = NetHttpTransport()
         val jsonFactory = GsonFactory.getDefaultInstance()

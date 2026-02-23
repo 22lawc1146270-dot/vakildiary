@@ -86,6 +86,7 @@ sealed class Screen(val route: String) {
         const val ARG_CASE_ID = "caseId"
         fun createRoute(caseId: String): String = "add_meeting/$caseId"
     }
+    object UpcomingMeetings : Screen("upcoming_meetings")
     object ECourtSearch : Screen("ecourt_search")
     object JudgmentSearch : Screen("judgment_search")
     object Dashboard : Screen("dashboard")
@@ -93,6 +94,7 @@ sealed class Screen(val route: String) {
     object Documents : Screen("documents")
     object More : Screen("more")
     object OverdueTasks : Screen("overdue_tasks")
+    object BackupStatus : Screen("backup_status")
 }
 
 private fun encode(value: String?): String = Uri.encode(value.orEmpty())

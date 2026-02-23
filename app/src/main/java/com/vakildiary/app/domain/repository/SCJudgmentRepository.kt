@@ -16,7 +16,10 @@ interface SCJudgmentRepository {
 
 data class JudgmentSearchResult(
     val judgmentId: String,
-    val title: String
+    val title: String,
+    val citation: String?,
+    val bench: String?,
+    val dateOfJudgment: Long?
 )
 
 data class JudgmentDownload(

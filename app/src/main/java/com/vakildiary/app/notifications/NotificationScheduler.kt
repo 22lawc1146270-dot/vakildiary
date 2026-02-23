@@ -48,7 +48,7 @@ object NotificationScheduler {
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "hearing_reminder_$caseId_$triggerAtMillis",
+            "hearing_reminder_${caseId}_$triggerAtMillis",
             ExistingWorkPolicy.REPLACE,
             request
         )
@@ -68,7 +68,7 @@ object NotificationScheduler {
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "task_reminder_$taskId_$triggerAtMillis",
+            "task_reminder_${taskId}_$triggerAtMillis",
             ExistingWorkPolicy.REPLACE,
             request
         )

@@ -24,6 +24,8 @@ import com.vakildiary.app.presentation.screens.ecourt.ECourtSearchScreen
 import com.vakildiary.app.presentation.screens.judgments.JudgmentSearchScreen
 import com.vakildiary.app.presentation.screens.meetings.AddMeetingScreen
 import com.vakildiary.app.presentation.screens.meetings.MeetingListScreen
+import com.vakildiary.app.presentation.screens.meetings.UpcomingMeetingsScreen
+import com.vakildiary.app.presentation.screens.backup.BackupStatusScreen
 import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
@@ -175,6 +177,9 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() }
             )
         }
+        composable(Screen.UpcomingMeetings.route) {
+            UpcomingMeetingsScreen(onBack = { navController.popBackStack() })
+        }
         composable(
             route = Screen.AddPayment.route,
             arguments = listOf(navArgument(Screen.AddPayment.ARG_CASE_ID) { type = NavType.StringType })
@@ -228,8 +233,13 @@ fun AppNavGraph(
         composable(Screen.More.route) {
             MoreScreen(
                 onOpenECourt = { navController.navigate(Screen.ECourtSearch.route) },
-                onOpenJudgments = { navController.navigate(Screen.JudgmentSearch.route) }
+                onOpenJudgments = { navController.navigate(Screen.JudgmentSearch.route) },
+                onOpenBackupStatus = { navController.navigate(Screen.BackupStatus.route) },
+                onOpenUpcomingMeetings = { navController.navigate(Screen.UpcomingMeetings.route) }
             )
+        }
+        composable(Screen.BackupStatus.route) {
+            BackupStatusScreen(onBack = { navController.popBackStack() })
         }
     }
 }

@@ -41,7 +41,7 @@ class TaskListViewModel @Inject constructor(
                 pending = pending,
                 completed = completed,
                 overdue = overdue
-            )
+            ) as TaskListUiState
         }
             .catch { emit(TaskListUiState.Error("Failed to load tasks")) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TaskListUiState.Loading)

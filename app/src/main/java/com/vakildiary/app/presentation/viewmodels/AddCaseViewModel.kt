@@ -122,6 +122,9 @@ class AddCaseViewModel @Inject constructor(
                 }
                 is Result.Error -> Unit
             }
+            if (!isCaseNumberFormatLikelyValid(state.caseNumber.trim())) {
+                _warning.tryEmit("Case number format looks unusual (e.g., 123/2024)")
+            }
             val now = System.currentTimeMillis()
             val case = Case(
                 caseId = UUID.randomUUID().toString(),
@@ -165,6 +168,10 @@ class AddCaseViewModel @Inject constructor(
 
     private fun updateForm(block: (AddCaseFormState) -> AddCaseFormState) {
         _formState.value = block(_formState.value)
+    }
+
+    private fun isCaseNumberFormatLikelyValid(caseNumber: String): Boolean {
+        return Regex("""\d+\s*/\s*\d{4}""").matches(caseNumber)
     }
 }
 

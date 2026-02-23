@@ -1,11 +1,17 @@
 package com.vakildiary.app
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
@@ -15,6 +21,7 @@ import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Badge
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.NavigationBar
@@ -40,6 +47,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import com.vakildiary.app.presentation.navigation.AppNavGraph
 import com.vakildiary.app.presentation.navigation.Screen
@@ -56,21 +64,30 @@ import com.vakildiary.app.presentation.viewmodels.RestoreViewModel
 import com.vakildiary.app.presentation.viewmodels.SettingsViewModel
 import com.vakildiary.app.presentation.viewmodels.AppLockViewModel
 import com.vakildiary.app.presentation.viewmodels.OverdueTasksViewModel
+import com.vakildiary.app.presentation.viewmodels.BackupStatusViewModel
 import com.vakildiary.app.presentation.viewmodels.state.RestoreUiState
 import com.vakildiary.app.security.BiometricLockManager
 import com.vakildiary.app.notifications.ECourtSyncScheduler
 import com.vakildiary.app.notifications.NotificationScheduler
 import com.vakildiary.app.notifications.DeltaSyncScheduler
+import com.vakildiary.app.notifications.BackupScheduler
+import com.vakildiary.app.notifications.NotificationIntents
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val notificationRoute = mutableStateOf<String?>(null)
+
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notificationRoute.value = parseNotificationRoute(intent)
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
             val languageMode by settingsViewModel.languageMode.collectAsStateWithLifecycle()
+            val notificationPromptShown by settingsViewModel.isNotificationPromptShown.collectAsStateWithLifecycle()
             val isDarkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -96,6 +113,9 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 val activity = context as? FragmentActivity
                 var isUnlocked by rememberSaveable { mutableStateOf(false) }
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { settingsViewModel.setNotificationPromptShown(true) }
 
                 if (userEmail.isNullOrBlank() && !isSignInSkipped) {
                     SignInScreen(viewModel = authViewModel, uiState = authUiState)
@@ -104,6 +124,27 @@ class MainActivity : ComponentActivity() {
                         NotificationScheduler.scheduleDailyDigest(this@MainActivity)
                         ECourtSyncScheduler.scheduleECourtSync(this@MainActivity)
                         DeltaSyncScheduler.scheduleDeltaSync(this@MainActivity)
+                    }
+                    val backupStatusViewModel: BackupStatusViewModel = hiltViewModel()
+                    val backupSchedule by backupStatusViewModel.backupSchedule.collectAsStateWithLifecycle()
+                    LaunchedEffect(backupSchedule) {
+                        BackupScheduler.scheduleBackup(this@MainActivity, backupSchedule)
+                    }
+
+                    LaunchedEffect(notificationPromptShown) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            !notificationPromptShown
+                        ) {
+                            val granted = ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (granted) {
+                                settingsViewModel.setNotificationPromptShown(true)
+                            } else {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
                     }
 
                     if (isAppLockEnabled && !isUnlocked && activity != null) {
@@ -129,6 +170,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val navController = rememberNavController()
+                    val deepLinkRoute = notificationRoute.value
+                    LaunchedEffect(deepLinkRoute) {
+                        val route = deepLinkRoute
+                        if (!route.isNullOrBlank()) {
+                            navController.navigate(route) {
+                                launchSingleTop = true
+                            }
+                            notificationRoute.value = null
+                        }
+                    }
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
                     val docketViewModel: TodayDocketViewModel = hiltViewModel()
@@ -136,10 +187,11 @@ class MainActivity : ComponentActivity() {
                     var isDocketSheetOpen by remember { mutableStateOf(false) }
                     var pendingOutcomeHearingId by remember { mutableStateOf<String?>(null) }
                     var pendingVoiceNotePath by remember { mutableStateOf<String?>(null) }
-                    val voiceNotePicker = rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.GetContent()
-                    ) { uri ->
-                        pendingVoiceNotePath = uri?.toString()
+                    val voiceNoteRecorder = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.StartActivityForResult()
+                    ) { result ->
+                        val uri = result.data?.data
+                        pendingVoiceNotePath = uri?.let { copyVoiceNoteToInternal(it) }
                     }
 
                     val overdueTasksViewModel: OverdueTasksViewModel = hiltViewModel()
@@ -160,24 +212,27 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> 0
                     }
+                    val totalCount = (docketUiState as? DocketUiState.Success)?.totalCount ?: 0
+                    val allDone = totalCount > 0 && pendingCount == 0
 
                     Scaffold(
                         floatingActionButton = {
                             FloatingActionButton(
                                 onClick = { isDocketSheetOpen = true },
-                                containerColor = Color(0xFFE67E22),
+                                containerColor = if (allDone) Color(0xFF1E7A4A) else Color(0xFFE67E22),
                                 modifier = Modifier.padding(bottom = 16.dp)
                             ) {
                                 BadgedBox(
                                     badge = {
                                         if (pendingCount > 0) {
-                                            Badge {
+                                            Badge(containerColor = Color(0xFFC0392B)) {
                                                 Text(text = pendingCount.toString())
                                             }
                                         }
                                     }
                                 ) {
-                                    Icon(imageVector = Icons.Default.Gavel, contentDescription = "Today's Docket")
+                                    val icon = if (allDone) Icons.Default.Check else Icons.Default.Gavel
+                                    Icon(imageVector = icon, contentDescription = "Today's Docket")
                                 }
                             }
                         },
@@ -202,7 +257,9 @@ class MainActivity : ComponentActivity() {
                                             BadgedBox(
                                                 badge = {
                                                     if (item.badgeCount > 0) {
-                                                        Badge { Text(text = item.badgeCount.toString()) }
+                                                        Badge(containerColor = Color(0xFFC0392B)) {
+                                                            Text(text = item.badgeCount.toString())
+                                                        }
                                                     }
                                                 }
                                             ) {
@@ -244,7 +301,10 @@ class MainActivity : ComponentActivity() {
                             caseName = if (caseName.isBlank()) "Case" else caseName,
                             voiceNotePath = pendingVoiceNotePath,
                             onDismiss = { pendingOutcomeHearingId = null },
-                            onAddVoiceNote = { voiceNotePicker.launch("audio/*") },
+                            onAddVoiceNote = {
+                                val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+                                voiceNoteRecorder.launch(intent)
+                            },
                             onSkipAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
                                 docketViewModel.markHearingComplete(
                                     hearingId = pendingOutcomeHearingId!!,
@@ -301,6 +361,37 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        notificationRoute.value = parseNotificationRoute(intent)
+    }
+
+    private fun parseNotificationRoute(intent: Intent?): String? {
+        val caseId = intent?.getStringExtra(NotificationIntents.EXTRA_CASE_ID)
+        if (!caseId.isNullOrBlank()) {
+            return Screen.CaseDetail.createRoute(caseId)
+        }
+        return when (intent?.getStringExtra(NotificationIntents.EXTRA_DESTINATION)) {
+            NotificationIntents.DEST_OVERDUE -> Screen.OverdueTasks.route
+            NotificationIntents.DEST_DASHBOARD -> Screen.Dashboard.route
+            else -> null
+        }
+    }
+
+    private fun copyVoiceNoteToInternal(uri: android.net.Uri): String? {
+        return try {
+            val dir = File(filesDir, "voice_notes")
+            if (!dir.exists()) dir.mkdirs()
+            val target = File(dir, "voice_${System.currentTimeMillis()}.m4a")
+            contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            } ?: return null
+            target.absolutePath
+        } catch (t: Throwable) {
+            null
         }
     }
 }

@@ -16,9 +16,15 @@ import javax.inject.Singleton
 class DeltaSyncManager @Inject constructor(
     private val context: Context,
     private val driveBackupManager: DriveBackupManager,
-    private val checksumStore: ChecksumStore
+    private val checksumStore: ChecksumStore,
+    private val driveAuthManager: DriveAuthManager
 ) {
     suspend fun syncDocuments(): Result<Int> = withContext(Dispatchers.IO) {
+        when (val authResult = driveAuthManager.ensureInitialized()) {
+            is Result.Error -> return@withContext Result.Error(authResult.message, authResult.throwable)
+            is Result.Success -> Unit
+        }
+
         val documentsDir = IoFile(context.filesDir, DOCUMENTS_DIR)
         if (!documentsDir.exists()) return@withContext Result.Success(0)
 

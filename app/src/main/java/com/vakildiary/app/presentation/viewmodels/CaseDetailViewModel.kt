@@ -10,6 +10,7 @@ import com.vakildiary.app.domain.usecase.hearing.GetHearingHistoryUseCase
 import com.vakildiary.app.domain.usecase.payment.GetPaymentsByCaseUseCase
 import com.vakildiary.app.domain.usecase.task.GetPendingTasksUseCase
 import com.vakildiary.app.presentation.viewmodels.state.CaseDetailUiState
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +27,12 @@ class CaseDetailViewModel @Inject constructor(
     private val archiveCaseUseCase: ArchiveCaseUseCase,
     private val getHearingHistoryUseCase: GetHearingHistoryUseCase,
     private val getPendingTasksUseCase: GetPendingTasksUseCase,
-    private val getPaymentsByCaseUseCase: GetPaymentsByCaseUseCase
+    private val getPaymentsByCaseUseCase: GetPaymentsByCaseUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
+
+    val advocateName: StateFlow<String?> = userPreferencesRepository.advocateName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun uiState(caseId: String): StateFlow<CaseDetailUiState> {
         return combine(

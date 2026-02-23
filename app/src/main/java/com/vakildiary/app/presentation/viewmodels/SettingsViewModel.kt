@@ -23,6 +23,12 @@ class SettingsViewModel @Inject constructor(
     val languageMode: StateFlow<LanguageMode> = userPreferencesRepository.languageMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LanguageMode.SYSTEM)
 
+    val advocateName: StateFlow<String?> = userPreferencesRepository.advocateName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val isNotificationPromptShown: StateFlow<Boolean> = userPreferencesRepository.isNotificationPromptShown
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
             userPreferencesRepository.setThemeMode(mode)
@@ -32,6 +38,18 @@ class SettingsViewModel @Inject constructor(
     fun setLanguageMode(mode: LanguageMode) {
         viewModelScope.launch {
             userPreferencesRepository.setLanguageMode(mode)
+        }
+    }
+
+    fun setAdvocateName(name: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAdvocateName(name)
+        }
+    }
+
+    fun setNotificationPromptShown(isShown: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNotificationPromptShown(isShown)
         }
     }
 }

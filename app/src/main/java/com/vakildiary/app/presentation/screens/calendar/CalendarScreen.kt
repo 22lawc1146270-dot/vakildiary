@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.DayOfWeek
@@ -40,12 +41,31 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import com.vakildiary.app.presentation.viewmodels.CalendarViewModel
+import com.vakildiary.app.presentation.viewmodels.TodayDocketViewModel
+import com.vakildiary.app.presentation.screens.docket.HearingOutcomeDialog
+import android.content.Intent
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import android.net.Uri
 
 @Composable
 fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var isWeekView by remember { mutableStateOf(false) }
     val events by viewModel.events.collectAsStateWithLifecycle()
+    val docketViewModel: TodayDocketViewModel = hiltViewModel()
+    val context = LocalContext.current
+    var pendingOutcomeHearingId by remember { mutableStateOf<String?>(null) }
+    var pendingOutcomeCaseName by remember { mutableStateOf<String?>(null) }
+    var pendingVoiceNotePath by remember { mutableStateOf<String?>(null) }
+    val voiceNoteRecorder = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        pendingVoiceNotePath = uri?.let { copyVoiceNoteToInternal(context, it) }
+    }
 
     val month = remember(selectedDate) { YearMonth.from(selectedDate) }
     val monthDays = remember(month) { buildMonthGrid(month) }
@@ -95,9 +115,52 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
         ) {
             DayAgendaPanel(
                 date = selectedDate,
-                events = eventsByDate[selectedDate].orEmpty()
+                events = eventsByDate[selectedDate].orEmpty(),
+                onEventClick = { event ->
+                    if (event.type == CalendarEventType.HEARING) {
+                        pendingOutcomeHearingId = event.id
+                        pendingOutcomeCaseName = event.title
+                        pendingVoiceNotePath = null
+                    }
+                }
             )
         }
+    }
+
+    if (pendingOutcomeHearingId != null) {
+        HearingOutcomeDialog(
+            caseName = pendingOutcomeCaseName ?: "Case",
+            voiceNotePath = pendingVoiceNotePath,
+            onDismiss = { pendingOutcomeHearingId = null },
+            onAddVoiceNote = {
+                val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+                voiceNoteRecorder.launch(intent)
+            },
+            onSkipAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
+                docketViewModel.markHearingComplete(
+                    hearingId = pendingOutcomeHearingId!!,
+                    outcome = outcome,
+                    orderDetails = orderDetails.ifBlank { null },
+                    adjournmentReason = adjournmentReason.ifBlank { null },
+                    voiceNotePath = pendingVoiceNotePath,
+                    nextDate = parseDate(nextDate)
+                )
+                pendingOutcomeHearingId = null
+                pendingVoiceNotePath = null
+            },
+            onSaveAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
+                docketViewModel.markHearingComplete(
+                    hearingId = pendingOutcomeHearingId!!,
+                    outcome = outcome,
+                    orderDetails = orderDetails.ifBlank { null },
+                    adjournmentReason = adjournmentReason.ifBlank { null },
+                    voiceNotePath = pendingVoiceNotePath,
+                    nextDate = parseDate(nextDate)
+                )
+                pendingOutcomeHearingId = null
+                pendingVoiceNotePath = null
+            }
+        )
     }
 }
 
@@ -198,7 +261,11 @@ private fun DotRow(events: List<CalendarEvent>) {
 }
 
 @Composable
-private fun DayAgendaPanel(date: LocalDate, events: List<CalendarEvent>) {
+private fun DayAgendaPanel(
+    date: LocalDate,
+    events: List<CalendarEvent>,
+    onEventClick: (CalendarEvent) -> Unit
+) {
     Surface(
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth()
@@ -216,7 +283,10 @@ private fun DayAgendaPanel(date: LocalDate, events: List<CalendarEvent>) {
                     items(events) { event ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.clickable(enabled = event.type == CalendarEventType.HEARING) {
+                                onEventClick(event)
+                            }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -249,6 +319,35 @@ private fun buildMonthGrid(month: YearMonth): List<LocalDate?> {
         result.add(null)
     }
     return result
+}
+
+private fun copyVoiceNoteToInternal(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val dir = File(context.filesDir, "voice_notes")
+        if (!dir.exists()) dir.mkdirs()
+        val target = File(dir, "voice_${System.currentTimeMillis()}.m4a")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        } ?: return null
+        target.absolutePath
+    } catch (t: Throwable) {
+        null
+    }
+}
+
+private fun parseDate(dateText: String): Long? {
+    return try {
+        val parts = dateText.split("/")
+        if (parts.size != 3) return null
+        val day = parts[0].toInt()
+        val month = parts[1].toInt()
+        val year = parts[2].toInt()
+        java.time.LocalDate.of(year, month, day)
+            .atStartOfDay(java.time.ZoneId.systemDefault())
+            .toInstant().toEpochMilli()
+    } catch (t: Throwable) {
+        null
+    }
 }
 
 data class CalendarEvent(

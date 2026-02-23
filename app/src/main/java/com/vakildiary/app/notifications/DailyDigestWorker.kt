@@ -5,9 +5,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.vakildiary.app.R
 import com.vakildiary.app.data.local.dao.CaseDao
 import com.vakildiary.app.data.local.dao.TaskDao
+import com.vakildiary.app.data.backup.ManualBackupManager
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.first
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -34,11 +35,20 @@ class DailyDigestWorker(
 
         val title = "Today's Digest"
         val content = "Hearings: ${hearings.size} • Tasks: ${tasks.size}"
+        val style = NotificationCompat.InboxStyle()
+        hearings.take(3).forEach { item ->
+            style.addLine("Hearing: ${item.caseName}")
+        }
+        tasks.take(3).forEach { item ->
+            style.addLine("Task: ${item.title}")
+        }
 
         val notification = NotificationCompat.Builder(applicationContext, NotificationChannels.DAILY_DIGEST)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(content)
+            .setStyle(style)
+            .setContentIntent(NotificationIntents.dashboard(applicationContext))
             .setAutoCancel(true)
             .build()
 
@@ -58,4 +68,6 @@ interface WorkerEntryPoint {
     fun taskDao(): TaskDao
     fun ecourtRepository(): com.vakildiary.app.domain.repository.ECourtRepository
     fun ecourtTrackingStore(): com.vakildiary.app.data.ecourt.ECourtTrackingStore
+    fun manualBackupManager(): ManualBackupManager
+    fun userPreferencesRepository(): UserPreferencesRepository
 }

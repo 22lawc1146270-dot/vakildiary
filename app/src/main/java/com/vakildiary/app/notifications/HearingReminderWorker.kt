@@ -5,7 +5,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.vakildiary.app.R
 import com.vakildiary.app.data.local.dao.CaseDao
 import kotlinx.coroutines.flow.first
 
@@ -25,9 +24,10 @@ class HearingReminderWorker(
         val content = "${caseEntity.caseName} • ${caseEntity.courtName}"
 
         val notification = NotificationCompat.Builder(applicationContext, NotificationChannels.HEARING_REMINDER)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(content)
+            .setContentIntent(NotificationIntents.caseDetail(applicationContext, caseId))
             .setAutoCancel(true)
             .build()
 

@@ -53,4 +53,10 @@ class AuthViewModel @Inject constructor(
             _uiState.value = AuthUiState.Success("")
         }
     }
+
+    fun resumeSignIn() {
+        viewModelScope.launch {
+            userPreferencesRepository.setSignInSkipped(false)
+        }
+    }
 }

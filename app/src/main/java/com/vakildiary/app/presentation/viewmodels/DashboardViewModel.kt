@@ -62,7 +62,7 @@ class DashboardViewModel @Inject constructor(
             totalCases = totalCases,
             pendingFees = "₹${pendingFees.toInt()}",
             upcomingIn7Days = upcomingIn7Days
-        )
+        ) as DashboardUiState
     }
         .catch { emit(DashboardUiState.Error("Failed to load dashboard")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState.Loading)

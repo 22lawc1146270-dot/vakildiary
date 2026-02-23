@@ -45,6 +45,20 @@ class RestoreViewModel @Inject constructor(
         }
     }
 
+    fun checkForManualRestore() {
+        viewModelScope.launch {
+            _uiState.value = RestoreUiState.Checking
+            when (val remote = restoreManager.hasRemoteBackup()) {
+                is Result.Success -> {
+                    _uiState.value = if (remote.data) RestoreUiState.Available else RestoreUiState.NotAvailable
+                }
+                is Result.Error -> {
+                    _uiState.value = RestoreUiState.Error(remote.message)
+                }
+            }
+        }
+    }
+
     fun restoreNow() {
         viewModelScope.launch {
             _uiState.value = RestoreUiState.Restoring

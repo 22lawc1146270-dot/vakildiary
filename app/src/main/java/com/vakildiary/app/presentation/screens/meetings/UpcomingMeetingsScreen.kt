@@ -23,80 +23,75 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vakildiary.app.domain.model.Meeting
-import com.vakildiary.app.presentation.viewmodels.MeetingViewModel
-import com.vakildiary.app.presentation.viewmodels.state.MeetingUiState
+import com.vakildiary.app.presentation.viewmodels.UpcomingMeetingItem
+import com.vakildiary.app.presentation.viewmodels.UpcomingMeetingsViewModel
+import com.vakildiary.app.presentation.viewmodels.state.UpcomingMeetingsUiState
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MeetingListScreen(
-    caseId: String,
-    showTopBar: Boolean = false,
-    showBack: Boolean = false,
-    onBack: () -> Unit = {},
-    viewModel: MeetingViewModel = hiltViewModel()
+fun UpcomingMeetingsScreen(
+    onBack: () -> Unit,
+    viewModel: UpcomingMeetingsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.meetings(caseId).collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
-    val content: @Composable (Modifier) -> Unit = { modifier ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Upcoming Meetings") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
         when (uiState) {
-            MeetingUiState.Loading -> {
-                Text(text = "Loading...", modifier = modifier.padding(16.dp))
+            UpcomingMeetingsUiState.Loading -> {
+                Text(text = "Loading...", modifier = Modifier.padding(16.dp))
             }
-            is MeetingUiState.Error -> {
+            is UpcomingMeetingsUiState.Error -> {
                 Text(
-                    text = (uiState as MeetingUiState.Error).message,
+                    text = (uiState as UpcomingMeetingsUiState.Error).message,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = modifier.padding(16.dp)
+                    modifier = Modifier.padding(16.dp)
                 )
             }
-            is MeetingUiState.Success -> {
-                val meetings = (uiState as MeetingUiState.Success).meetings
-                LazyColumn(
-                    modifier = modifier,
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(meetings, key = { it.meetingId }) { meeting ->
-                        MeetingCard(meeting = meeting)
+            is UpcomingMeetingsUiState.Success -> {
+                val meetings = (uiState as UpcomingMeetingsUiState.Success).meetings
+                if (meetings.isEmpty()) {
+                    Text(text = "No upcoming meetings", modifier = Modifier.padding(16.dp))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.padding(paddingValues),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(meetings, key = { it.meeting.meetingId }) { item ->
+                            UpcomingMeetingCard(item = item)
+                        }
                     }
                 }
             }
         }
     }
-
-    if (showTopBar) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(text = "Meetings") },
-                    navigationIcon = {
-                        if (showBack) {
-                            IconButton(onClick = onBack) {
-                                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
-                            }
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            content(Modifier.padding(paddingValues))
-        }
-    } else {
-        content(Modifier)
-    }
 }
 
 @Composable
-private fun MeetingCard(meeting: Meeting) {
+private fun UpcomingMeetingCard(item: UpcomingMeetingItem) {
+    val meeting = item.meeting
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(text = meeting.clientName, style = MaterialTheme.typography.titleMedium)
+            Text(text = "Case: ${item.caseName ?: meeting.caseId}")
             Text(text = "${formatDate(meeting.meetingDate)} • ${meeting.location}")
-            Text(text = meeting.agenda, style = MaterialTheme.typography.bodyMedium)
+            if (meeting.agenda.isNotBlank()) {
+                Text(text = meeting.agenda, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

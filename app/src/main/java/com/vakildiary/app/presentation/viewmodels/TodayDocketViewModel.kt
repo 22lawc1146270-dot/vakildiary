@@ -11,6 +11,7 @@ import com.vakildiary.app.domain.usecase.cases.GetCaseByIdUseCase
 import com.vakildiary.app.domain.usecase.cases.UpdateCaseUseCase
 import com.vakildiary.app.domain.usecase.hearing.AddHearingUseCase
 import com.vakildiary.app.domain.usecase.task.MarkTaskCompleteUseCase
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,31 +35,43 @@ class TodayDocketViewModel @Inject constructor(
     private val addHearingUseCase: AddHearingUseCase,
     private val getCaseByIdUseCase: GetCaseByIdUseCase,
     private val updateCaseUseCase: UpdateCaseUseCase,
-    private val markTaskCompleteUseCase: MarkTaskCompleteUseCase
+    private val markTaskCompleteUseCase: MarkTaskCompleteUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     val uiState: StateFlow<DocketUiState> = combine(
         caseDao.getCasesWithHearingToday(),
         taskDao.getTasksDueToday(),
-        hearingHistoryDao.getCaseIdsWithHearingToday()
-    ) { cases, tasks, completedCaseIds ->
+        hearingHistoryDao.getCaseIdsWithHearingToday(),
+        caseDao.getAllActiveCases(),
+        userPreferencesRepository.advocateName
+    ) { cases, tasks, completedCaseIds, allCases, advocateName ->
+        val caseMap = allCases.associateBy { it.caseId }
         val hearingItems = cases.map { caseEntity ->
             DocketItem(
                 id = caseEntity.caseId,
                 title = caseEntity.caseName,
                 subtitle = buildHearingSubtitle(caseEntity.courtName, caseEntity.nextHearingDate),
                 type = DocketType.HEARING,
-                isCompleted = completedCaseIds.contains(caseEntity.caseId)
+                isCompleted = completedCaseIds.contains(caseEntity.caseId),
+                isOverdue = false,
+                clientName = caseEntity.clientName,
+                courtName = caseEntity.courtName,
+                nextHearingDate = caseEntity.nextHearingDate
             )
         }
 
         val taskItems = tasks.map { taskEntity ->
+            val caseName = caseMap[taskEntity.caseId]?.caseName ?: taskEntity.caseId
+            val taskType = taskEntity.taskType.name.replace('_', ' ')
+            val isOverdue = !taskEntity.isCompleted && taskEntity.deadline < System.currentTimeMillis()
             DocketItem(
                 id = taskEntity.taskId,
                 title = taskEntity.title,
-                subtitle = "Case: ${taskEntity.caseId}",
+                subtitle = "$caseName • $taskType",
                 type = DocketType.TASK,
-                isCompleted = taskEntity.isCompleted
+                isCompleted = taskEntity.isCompleted,
+                isOverdue = isOverdue
             )
         }
 
@@ -69,8 +82,9 @@ class TodayDocketViewModel @Inject constructor(
             hearings = hearingItems,
             tasks = taskItems,
             completedCount = completedCount,
-            totalCount = totalCount
-        )
+            totalCount = totalCount,
+            advocateName = advocateName ?: "Counsel"
+        ) as DocketUiState
     }
         .catch { emit(DocketUiState.Error("Failed to load today's docket")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DocketUiState.Loading)
@@ -152,7 +166,8 @@ sealed interface DocketUiState {
         val hearings: List<DocketItem>,
         val tasks: List<DocketItem>,
         val completedCount: Int,
-        val totalCount: Int
+        val totalCount: Int,
+        val advocateName: String = "Counsel"
     ) : DocketUiState
     data class Error(val message: String) : DocketUiState
 }
@@ -162,7 +177,11 @@ data class DocketItem(
     val title: String,
     val subtitle: String,
     val type: DocketType,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    val isOverdue: Boolean,
+    val clientName: String? = null,
+    val courtName: String? = null,
+    val nextHearingDate: Long? = null
 )
 
 enum class DocketType {

@@ -4,8 +4,8 @@ import com.vakildiary.app.presentation.model.ECourtCaseItem
 
 object ECourtParser {
     fun parse(raw: String, form: ECourtSearchForm): List<ECourtCaseItem> {
-        val rowRegex = Regex("<tr[^>]*>(.*?)</tr>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL)
-        val cellRegex = Regex("<td[^>]*>(.*?)</td>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL)
+        val rowRegex = Regex("<tr[^>]*>(.*?)</tr>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        val cellRegex = Regex("<td[^>]*>(.*?)</td>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
         val tagRegex = Regex("<[^>]+>")
         val dateRegex = Regex("\\b\\d{2}/\\d{2}/\\d{4}\\b")
 

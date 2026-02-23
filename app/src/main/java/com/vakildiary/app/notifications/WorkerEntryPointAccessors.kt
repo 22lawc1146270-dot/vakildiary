@@ -4,6 +4,8 @@ import android.content.Context
 import com.vakildiary.app.data.ecourt.ECourtTrackingStore
 import com.vakildiary.app.data.local.dao.CaseDao
 import com.vakildiary.app.data.local.dao.TaskDao
+import com.vakildiary.app.data.backup.ManualBackupManager
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
 import com.vakildiary.app.domain.repository.ECourtRepository
 import dagger.hilt.android.EntryPointAccessors
 
@@ -26,5 +28,15 @@ object WorkerEntryPointAccessors {
     fun ecourtTrackingStore(context: Context): ECourtTrackingStore {
         val entryPoint = EntryPointAccessors.fromApplication(context, WorkerEntryPoint::class.java)
         return entryPoint.ecourtTrackingStore()
+    }
+
+    fun manualBackupManager(context: Context): ManualBackupManager {
+        val entryPoint = EntryPointAccessors.fromApplication(context, WorkerEntryPoint::class.java)
+        return entryPoint.manualBackupManager()
+    }
+
+    fun userPreferencesRepository(context: Context): UserPreferencesRepository {
+        val entryPoint = EntryPointAccessors.fromApplication(context, WorkerEntryPoint::class.java)
+        return entryPoint.userPreferencesRepository()
     }
 }

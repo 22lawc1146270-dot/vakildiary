@@ -12,7 +12,7 @@ class DeltaSyncWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val entryPoint = EntryPointAccessors.fromApplication(appContext, DeltaSyncEntryPoint::class.java)
+        val entryPoint = EntryPointAccessors.fromApplication(applicationContext, DeltaSyncEntryPoint::class.java)
         val manager = entryPoint.deltaSyncManager()
         return when (manager.syncDocuments()) {
             is com.vakildiary.app.core.Result.Success -> Result.success()

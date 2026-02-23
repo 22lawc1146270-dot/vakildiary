@@ -40,6 +40,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
+import com.vakildiary.app.core.ShareUtils
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +54,7 @@ fun TodayDocketBottomSheet(
     onToggleTask: (taskId: String, isCompleted: Boolean) -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 ) {
+    val handleColor = MaterialTheme.colorScheme.onSurfaceVariant
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -62,7 +66,7 @@ fun TodayDocketBottomSheet(
                     .height(4.dp)
                     .drawBehind {
                         drawRect(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = handleColor,
                             size = size
                         )
                     }
@@ -94,6 +98,7 @@ fun TodayDocketBottomSheet(
                         items(uiState.hearings) { item ->
                             DocketRow(
                                 item = item,
+                                advocateName = uiState.advocateName,
                                 onToggle = { checked ->
                                     if (checked) {
                                         onHearingOutcome(item.id)
@@ -110,6 +115,7 @@ fun TodayDocketBottomSheet(
                         items(uiState.tasks) { item ->
                             DocketRow(
                                 item = item,
+                                advocateName = uiState.advocateName,
                                 onToggle = { checked -> onToggleTask(item.id, checked) }
                             )
                         }
@@ -165,6 +171,7 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun DocketRow(
     item: DocketItem,
+    advocateName: String,
     onToggle: (Boolean) -> Unit
 ) {
     val strikeProgress by animateFloatAsState(targetValue = if (item.isCompleted) 1f else 0f)
@@ -173,6 +180,12 @@ private fun DocketRow(
     } else {
         MaterialTheme.colorScheme.onSurface
     }
+    val subtitleColor = if (item.isOverdue && !item.isCompleted) {
+        MaterialTheme.colorScheme.error
+    } else {
+        textColor
+    }
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -198,10 +211,35 @@ private fun DocketRow(
             Text(
                 text = item.subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = textColor,
+                color = subtitleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (item.isOverdue && !item.isCompleted) {
+                Text(
+                    text = "Overdue",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        if (item.type == DocketType.HEARING && item.nextHearingDate != null) {
+            IconButton(onClick = {
+                ShareUtils.shareHearingDateText(
+                    context = context,
+                    clientName = item.clientName ?: "Client",
+                    caseName = item.title,
+                    date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    court = item.courtName ?: "",
+                    advocateName = advocateName
+                )
+            }) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Share",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         Spacer(modifier = Modifier.width(8.dp))
         DocketChip(type = item.type)

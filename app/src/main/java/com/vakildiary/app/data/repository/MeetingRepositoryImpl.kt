@@ -27,6 +27,12 @@ class MeetingRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getUpcomingMeetings(now: Long): Flow<Result<List<Meeting>>> {
+        return meetingDao.getUpcomingMeetings(now).map { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }
+    }
+
     override suspend fun deleteMeeting(meeting: Meeting): Result<Unit> {
         return try {
             meetingDao.deleteMeeting(meeting.toEntity())

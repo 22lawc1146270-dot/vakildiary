@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.InputStream
 import javax.inject.Inject
 
 @HiltViewModel
@@ -83,16 +84,13 @@ class DocumentListViewModel @Inject constructor(
         viewModelScope.launch {
             val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
             val fileName = getFileName(uri) ?: "document_${System.currentTimeMillis()}"
-            val input = openInputStream(uri)
-            if (input == null) {
-                _fileEvents.tryEmit(Result.Error("Unable to read file"))
-                return@launch
-            }
             val result = attachDocumentUseCase(
                 caseId = caseId,
                 fileName = fileName,
                 mimeType = mimeType,
-                inputStreamProvider = { input },
+                inputStreamProvider = {
+                    openInputStream(uri) ?: throw IllegalStateException("Unable to read file")
+                },
                 isScanned = false,
                 tags = ""
             )
@@ -105,15 +103,12 @@ class DocumentListViewModel @Inject constructor(
     fun attachScannedDocument(caseId: String?, uri: Uri) {
         viewModelScope.launch {
             val fileName = "scan_${System.currentTimeMillis()}.pdf"
-            val input = openInputStream(uri)
-            if (input == null) {
-                _fileEvents.tryEmit(Result.Error("Unable to read scan"))
-                return@launch
-            }
             val result = saveScannedDocumentUseCase(
                 caseId = caseId,
                 fileName = fileName,
-                inputStreamProvider = { input }
+                inputStreamProvider = {
+                    openInputStream(uri) ?: throw IllegalStateException("Unable to read scan")
+                }
             )
             if (result is Result.Error) {
                 _fileEvents.tryEmit(Result.Error(result.message))
