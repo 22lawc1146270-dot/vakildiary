@@ -19,7 +19,7 @@ class AttachDocumentUseCase @Inject constructor(
         inputStreamProvider: () -> InputStream,
         isScanned: Boolean,
         tags: String = ""
-    ): Result<Unit> {
+    ): Result<Document> {
         val stored = when (val result = storage.saveDocument(
             caseId = caseId,
             fileName = fileName,
@@ -46,10 +46,10 @@ class AttachDocumentUseCase @Inject constructor(
         )
 
         return when (val insert = repository.insertDocument(document)) {
-            is Result.Success -> insert
+            is Result.Success -> Result.Success(document)
             is Result.Error -> {
                 storage.deleteFile(stored.filePath)
-                insert
+                Result.Error(insert.message, insert.throwable)
             }
         }
     }

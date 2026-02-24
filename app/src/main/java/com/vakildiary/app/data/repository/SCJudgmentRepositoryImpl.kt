@@ -4,6 +4,7 @@ import com.vakildiary.app.core.Result
 import com.google.gson.Gson
 import com.vakildiary.app.data.local.dao.JudgmentMetadataDao
 import com.vakildiary.app.data.local.entities.JudgmentMetadataEntity
+import android.util.Log
 import com.vakildiary.app.data.remote.judgments.JudgmentMetadataDto
 import com.vakildiary.app.data.remote.judgments.MetadataIndexPartDto
 import com.vakildiary.app.data.remote.judgments.SCJudgmentService
@@ -12,8 +13,10 @@ import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.domain.repository.SCJudgmentRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import javax.inject.Inject
 
 class SCJudgmentRepositoryImpl @Inject constructor(
@@ -44,13 +47,17 @@ class SCJudgmentRepositoryImpl @Inject constructor(
     override suspend fun downloadJudgment(
         judgmentId: String
     ): Result<JudgmentDownload> {
-        return try {
+        return withContext(Dispatchers.IO) {
+            try {
             val entity = judgmentMetadataDao.getById(judgmentId)
-                ?: return Result.Error("Judgment not found in cache")
+            if (entity == null) {
+                return@withContext Result.Error("Judgment not found in cache")
+            }
             val archivePath = "data/tar/year=${entity.year}/english/${entity.archiveName}"
+            Log.d(TAG, "Downloading judgmentId=$judgmentId archive=$archivePath target=${entity.fileName}")
             val pdfBytes = service.downloadArchive(archivePath).use { body ->
                 extractPdfFromTar(body.byteStream(), entity.fileName)
-            } ?: return Result.Error("Judgment PDF not found in archive")
+            } ?: return@withContext Result.Error("Judgment PDF not found in archive")
             val mimeType = "application/pdf"
             Result.Success(
                 JudgmentDownload(
@@ -59,8 +66,15 @@ class SCJudgmentRepositoryImpl @Inject constructor(
                     inputStream = pdfBytes.inputStream()
                 )
             )
-        } catch (t: Throwable) {
-            Result.Error("Failed to download judgment", t)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to download judgmentId=$judgmentId", t)
+                val message = when (t) {
+                    is HttpException -> "Failed to download judgment (HTTP ${t.code()})"
+                    is IOException -> "Network error while downloading judgment"
+                    else -> "Failed to download judgment"
+                }
+                Result.Error(message, t)
+            }
         }
     }
 
@@ -101,6 +115,8 @@ class SCJudgmentRepositoryImpl @Inject constructor(
                                     bench = parsed.bench,
                                     coram = parsed.coram,
                                     caseNumber = parsed.caseNumber,
+                                    petitioner = parsed.petitioner,
+                                    respondent = parsed.respondent,
                                     year = year,
                                     archiveName = fileArchive,
                                     fileName = fileName,
@@ -137,17 +153,23 @@ class SCJudgmentRepositoryImpl @Inject constructor(
     }
 
     private fun extractPdfFromTar(stream: java.io.InputStream, targetFile: String): ByteArray? {
+        val normalizedTarget = targetFile.replace('\\', '/')
+        val targetBaseName = normalizedTarget.substringAfterLast('/')
         TarArchiveInputStream(stream).use { tarInput ->
             while (true) {
                 val entry = tarInput.nextTarEntry ?: break
                 if (!entry.isFile) continue
-                val entryName = entry.name.substringAfterLast('/')
-                if (!entryName.equals(targetFile, ignoreCase = true)) continue
+                val normalizedEntry = entry.name.replace('\\', '/')
+                val entryName = normalizedEntry.substringAfterLast('/')
+                val matches = normalizedEntry.equals(normalizedTarget, ignoreCase = true) ||
+                    entryName.equals(targetBaseName, ignoreCase = true)
+                if (!matches) continue
                 val output = ByteArrayOutputStream()
                 tarInput.copyTo(output)
                 return output.toByteArray()
             }
         }
+        Log.w(TAG, "PDF not found in archive for target=$targetFile")
         return null
     }
 
@@ -157,6 +179,8 @@ class SCJudgmentRepositoryImpl @Inject constructor(
             parsed.caseNumber,
             parsed.bench,
             parsed.coram,
+            parsed.petitioner,
+            parsed.respondent,
             dto.citationDisplay
         ).joinToString(" ")
         return "$raw $tokens".lowercase()
@@ -167,12 +191,16 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         val caseNumber = extractValue(rawHtml, "Case No")
         val bench = extractValue(rawHtml, "Bench")
         val coram = parseCoram(rawHtml)
+        val petitioner = extractValue(rawHtml, "Petitioner") ?: extractValue(rawHtml, "Appellant")
+        val respondent = extractValue(rawHtml, "Respondent")
         val rawText = stripHtml(rawHtml)
         return ParsedMetadata(
             decisionDate = decisionDate,
             caseNumber = caseNumber,
             bench = bench,
             coram = coram,
+            petitioner = petitioner,
+            respondent = respondent,
             rawText = rawText
         )
     }
@@ -225,6 +253,8 @@ class SCJudgmentRepositoryImpl @Inject constructor(
             bench = bench,
             coram = coram,
             caseNumber = caseNumber,
+            petitioner = petitioner,
+            respondent = respondent,
             dateOfJudgment = dateOfJudgment
         )
     }
@@ -234,6 +264,12 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         val caseNumber: String?,
         val bench: String?,
         val coram: String?,
+        val petitioner: String?,
+        val respondent: String?,
         val rawText: String
     )
+
+    companion object {
+        private const val TAG = "SCJudgmentRepo"
+    }
 }

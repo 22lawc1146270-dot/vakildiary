@@ -50,6 +50,7 @@ class EditCaseViewModel @Inject constructor(
                         clientName = case.clientName,
                         caseType = case.caseType,
                         caseStage = case.caseStage,
+                        customStage = case.customStage.orEmpty(),
                         oppositeParty = case.oppositeParty.orEmpty(),
                         assignedJudge = case.assignedJudge.orEmpty(),
                         firNumber = case.firNumber.orEmpty(),
@@ -72,7 +73,13 @@ class EditCaseViewModel @Inject constructor(
     fun onCourtNameChanged(value: String) = updateForm { it.copy(courtName = value) }
     fun onClientNameChanged(value: String) = updateForm { it.copy(clientName = value) }
     fun onCaseTypeChanged(value: CaseType) = updateForm { it.copy(caseType = value) }
-    fun onCaseStageChanged(value: CaseStage) = updateForm { it.copy(caseStage = value) }
+    fun onCaseStageChanged(value: CaseStage) = updateForm {
+        it.copy(
+            caseStage = value,
+            customStage = if (value == CaseStage.CUSTOM) it.customStage else ""
+        )
+    }
+    fun onCustomStageChanged(value: String) = updateForm { it.copy(customStage = value) }
     fun onOppositePartyChanged(value: String) = updateForm { it.copy(oppositeParty = value) }
     fun onJudgeChanged(value: String) = updateForm { it.copy(assignedJudge = value) }
     fun onFirNumberChanged(value: String) = updateForm { it.copy(firNumber = value) }
@@ -88,6 +95,19 @@ class EditCaseViewModel @Inject constructor(
         val fees = state.totalAgreedFees.trim()
         val parsedFees = if (fees.isBlank()) null else fees.toDoubleOrNull()
 
+        val customStage = state.customStage.trim().ifBlank { null }
+        val stage = when (state.caseStage) {
+            CaseStage.CUSTOM -> {
+                if (customStage == null) {
+                    _uiState.value = AddCaseUiState.Error("Please enter a custom stage")
+                    return
+                }
+                CaseStage.CUSTOM
+            }
+            null -> base.caseStage
+            else -> state.caseStage
+        }
+
         val updated = base.copy(
             caseName = state.caseName.trim(),
             caseNumber = state.caseNumber.trim(),
@@ -95,7 +115,8 @@ class EditCaseViewModel @Inject constructor(
             courtName = state.courtName.trim(),
             clientName = state.clientName.trim(),
             caseType = state.caseType ?: base.caseType,
-            caseStage = state.caseStage ?: base.caseStage,
+            caseStage = stage,
+            customStage = if (stage == CaseStage.CUSTOM) customStage else null,
             oppositeParty = state.oppositeParty.trim().ifBlank { null },
             assignedJudge = state.assignedJudge.trim().ifBlank { null },
             firNumber = state.firNumber.trim().ifBlank { null },

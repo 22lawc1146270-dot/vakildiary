@@ -21,6 +21,8 @@ data class JudgmentSearchResult(
     val bench: String?,
     val coram: String?,
     val caseNumber: String?,
+    val petitioner: String?,
+    val respondent: String?,
     val dateOfJudgment: Long?
 )
 

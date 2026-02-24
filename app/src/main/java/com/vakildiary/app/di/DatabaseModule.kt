@@ -32,7 +32,12 @@ object DatabaseModule {
             VakilDiaryDatabase::class.java,
             DATABASE_NAME
         )
-            .addMigrations(VakilDiaryDatabase.MIGRATION_1_2, VakilDiaryDatabase.MIGRATION_2_3)
+            .addMigrations(
+                VakilDiaryDatabase.MIGRATION_1_2,
+                VakilDiaryDatabase.MIGRATION_2_3,
+                VakilDiaryDatabase.MIGRATION_3_4,
+                VakilDiaryDatabase.MIGRATION_4_5
+            )
             .build()
     }
 

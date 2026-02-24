@@ -1,15 +1,15 @@
 package com.vakildiary.app.domain.model
 
 enum class CourtType {
-    DISTRICT, HIGH, SUPREME, TRIBUNAL
+    DISTRICT, HIGH, SUPREME, TRIBUNAL, UNKNOWN
 }
 
 enum class CaseType {
-    CIVIL, CRIMINAL, WRIT, APPEAL, REVISION, OTHER
+    CIVIL, CRIMINAL, WRIT, APPEAL, REVISION, OTHER, UNKNOWN
 }
 
 enum class CaseStage {
-    FILING, HEARING, ARGUMENTS, JUDGMENT, DISPOSED
+    FILING, HEARING, ARGUMENTS, JUDGMENT, DISPOSED, CUSTOM, UNKNOWN
 }
 
 enum class TaskType {

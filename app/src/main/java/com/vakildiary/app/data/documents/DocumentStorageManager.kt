@@ -158,7 +158,7 @@ class DocumentStorageManager @Inject constructor(
     }
 
     private fun sanitizeFileName(name: String): String {
-        return name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        return name.replace(Regex("[^A-Za-z0-9._\\- ]"), "_")
     }
 
     private fun getExtension(fileName: String, mimeType: String): String {

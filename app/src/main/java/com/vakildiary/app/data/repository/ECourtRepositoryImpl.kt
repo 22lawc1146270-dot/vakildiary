@@ -128,8 +128,16 @@ class ECourtRepositoryImpl @Inject constructor(
             val captchaHtml = response.captchaHtml.orEmpty()
             val imageUrl = ECourtHtmlParser.parseCaptchaImageUrl(captchaHtml)
                 ?: return Result.Error(response.errorMessage ?: "Failed to load captcha")
+            val imageBytes = fetchCaptchaBytes(imageUrl)
+                ?: return Result.Error("Failed to load captcha image")
             val newToken = response.appToken ?: token
-            Result.Success(ECourtCaptcha(token = newToken, imageUrl = imageUrl))
+            Result.Success(
+                ECourtCaptcha(
+                    token = newToken,
+                    imageUrl = imageUrl,
+                    imageBytes = imageBytes
+                )
+            )
         } catch (t: Throwable) {
             Result.Error("Failed to load captcha", t)
         }
@@ -168,16 +176,24 @@ class ECourtRepositoryImpl @Inject constructor(
             }
             val caseHtml = response.caseData.orEmpty()
             val imageUrl = ECourtHtmlParser.parseCaptchaImageUrl(response.captchaHtml.orEmpty())
+            val imageBytes = imageUrl?.let { fetchCaptchaBytes(it) }
             val newToken = response.appToken ?: token
             Result.Success(
                 ECourtSearchResult(
                     token = newToken,
                     caseHtml = caseHtml,
-                    captchaImageUrl = imageUrl
+                    captchaImageUrl = imageUrl,
+                    captchaImageBytes = imageBytes
                 )
             )
         } catch (t: Throwable) {
             Result.Error("eCourt search failed", t)
         }
+    }
+
+    private suspend fun fetchCaptchaBytes(imageUrl: String): ByteArray? {
+        val response = apiService.fetchCaptchaImage(imageUrl)
+        if (!response.isSuccessful) return null
+        return response.body()?.bytes()
     }
 }

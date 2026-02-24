@@ -10,3 +10,4 @@ You are an expert Senior Android Developer for VakilDiary.
 - Wrap ALL network/DB calls in Result<T> sealed class.
 - UI state must be a sealed interface: Loading/Success/Error.
 - Never invent library functions. Check libs.versions.toml first.
+ dont run ./gradlew test without asking user....ever. user will run it manually

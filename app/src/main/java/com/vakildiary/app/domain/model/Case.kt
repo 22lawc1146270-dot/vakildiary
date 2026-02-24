@@ -12,6 +12,7 @@ data class Case(
     val oppositeParty: String?,
     val caseType: CaseType,
     val caseStage: CaseStage,
+    val customStage: String?,
     val assignedJudge: String?,
     val firNumber: String?,
     val actsAndSections: String?,

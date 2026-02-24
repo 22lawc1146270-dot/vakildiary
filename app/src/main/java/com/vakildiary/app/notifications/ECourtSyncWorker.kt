@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.vakildiary.app.core.Result as AppResult
 import com.vakildiary.app.domain.model.CaseStage
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.model.ECourtParser
 import com.vakildiary.app.presentation.model.ECourtSearchForm
 import java.time.LocalDate
@@ -91,13 +92,18 @@ class ECourtSyncWorker(
                         caseDao.updateCase(
                             caseEntity.copy(
                                 caseStage = newStage,
+                                customStage = null,
                                 nextHearingDate = newNextDate,
                                 updatedAt = System.currentTimeMillis()
                             )
                         )
                         trackingStore.updateStatus(caseEntity.caseId, item.stage, item.nextHearingDate)
                         val message = buildString {
-                            if (stageChanged) append("Stage: ${caseEntity.caseStage.name} → ${newStage.name}")
+                            if (stageChanged) {
+                                append(
+                                    "Stage: ${caseEntity.caseStage.displayLabel(caseEntity.customStage)} → ${newStage.displayLabel()}"
+                                )
+                            }
                             if (dateChanged) {
                                 if (isNotEmpty()) append(" • ")
                                 append("Next: ${item.nextHearingDate}")

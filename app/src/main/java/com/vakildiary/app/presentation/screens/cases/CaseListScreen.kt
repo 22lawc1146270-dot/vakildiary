@@ -26,6 +26,7 @@ import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.components.AppCard
 import com.vakildiary.app.presentation.components.UrgencyBadge
 import com.vakildiary.app.presentation.theme.VakilTheme
@@ -229,8 +230,11 @@ private fun CaseCard(
                         style = VakilTheme.typography.headlineMedium,
                         color = VakilTheme.colors.textPrimary
                     )
+                    val clientLabel = case.clientName.takeIf { it.isNotBlank() }
+                        ?.let { "Client: $it" }
+                        ?: "Client: Not set"
                     Text(
-                        text = "Adv. ${case.clientName}", 
+                        text = clientLabel,
                         style = VakilTheme.typography.labelMedium,
                         color = VakilTheme.colors.accentPrimary
                     )
@@ -267,7 +271,7 @@ private fun CaseCard(
                     color = VakilTheme.colors.bgSurfaceSoft
                 ) {
                     Text(
-                        text = case.caseStage.name,
+                        text = case.caseStage.displayLabel(case.customStage),
                         style = VakilTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         color = VakilTheme.colors.textPrimary
@@ -302,9 +306,9 @@ private fun FilterBottomSheet(
         ) {
             Text(text = "Filter Cases", style = VakilTheme.typography.headlineMedium)
             
-            FilterGroup("Court Type", CourtType.values(), courtFilters, onCourtToggle)
-            FilterGroup("Case Type", CaseType.values(), typeFilters, onTypeToggle)
-            FilterGroup("Stage", CaseStage.values(), stageFilters, onStageToggle)
+            FilterGroup("Court Type", CourtType.values(), courtFilters, onCourtToggle) { it.displayLabel() }
+            FilterGroup("Case Type", CaseType.values(), typeFilters, onTypeToggle) { it.displayLabel() }
+            FilterGroup("Stage", CaseStage.values(), stageFilters, onStageToggle) { it.displayLabel() }
             
             Button(
                 onClick = onDismiss,
@@ -324,7 +328,8 @@ private fun <T> FilterGroup(
     title: String,
     options: Array<T>,
     selected: Set<T>,
-    onToggle: (T) -> Unit
+    onToggle: (T) -> Unit,
+    labelFor: (T) -> String = { it.toString().replace("_", " ") }
 ) {
     Column {
         Text(text = title, style = VakilTheme.typography.labelMedium, color = VakilTheme.colors.textSecondary)
@@ -338,7 +343,7 @@ private fun <T> FilterGroup(
                 FilterChip(
                     selected = isSelected,
                     onClick = { onToggle(opt) },
-                    label = { Text(text = opt.toString().replace("_", " "), style = VakilTheme.typography.labelSmall) },
+                    label = { Text(text = labelFor(opt), style = VakilTheme.typography.labelSmall) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = VakilTheme.colors.accentPrimary,
                         containerColor = VakilTheme.colors.bgElevated,

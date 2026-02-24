@@ -64,17 +64,27 @@ object VakilTheme {
 @Composable
 fun VakilDiaryTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accentPack: AccentPack = AccentPack.Indigo,
+    accentPack: AccentPack? = null,
     content: @Composable () -> Unit
 ) {
     val systemInDark = isSystemInDarkTheme()
+
+    val defaultAccent = when (themeMode) {
+        ThemeMode.SYSTEM -> if (systemInDark) AccentPack.Emerald else AccentPack.Indigo
+        ThemeMode.LIGHT_IVORY -> AccentPack.Burgundy
+        ThemeMode.LIGHT_NORDIC -> AccentPack.Indigo
+        ThemeMode.DARK_SLATE -> AccentPack.Emerald
+        ThemeMode.DARK_ONYX -> AccentPack.Gold
+    }
+
+    val effectiveAccent = accentPack ?: defaultAccent
     
     val colors = when (themeMode) {
-        ThemeMode.SYSTEM -> if (systemInDark) darkSlateColors(accentPack) else lightNordicColors(accentPack)
-        ThemeMode.LIGHT_IVORY -> lightIvoryColors(accentPack)
-        ThemeMode.LIGHT_NORDIC -> lightNordicColors(accentPack)
-        ThemeMode.DARK_SLATE -> darkSlateColors(accentPack)
-        ThemeMode.DARK_ONYX -> darkOnyxColors(accentPack)
+        ThemeMode.SYSTEM -> if (systemInDark) darkSlateColors(effectiveAccent) else lightNordicColors(effectiveAccent)
+        ThemeMode.LIGHT_IVORY -> lightIvoryColors(effectiveAccent)
+        ThemeMode.LIGHT_NORDIC -> lightNordicColors(effectiveAccent)
+        ThemeMode.DARK_SLATE -> darkSlateColors(effectiveAccent)
+        ThemeMode.DARK_ONYX -> darkOnyxColors(effectiveAccent)
     }
 
     val materialColorScheme = if (colors.isDark) {

@@ -1,6 +1,8 @@
 package com.vakildiary.app.presentation.screens.ecourt
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.graphics.BitmapFactory
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -46,8 +49,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import androidx.compose.ui.graphics.asImageBitmap
 import com.vakildiary.app.domain.model.CourtType
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.domain.model.ECourtComplexOption
 import com.vakildiary.app.domain.model.ECourtOption
 import com.vakildiary.app.R
@@ -69,7 +73,7 @@ fun ECourtSearchScreen(
     var form by remember { mutableStateOf(ECourtSearchForm()) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lookupState by viewModel.lookupState.collectAsStateWithLifecycle()
-    val captchaUrl by viewModel.captchaUrl.collectAsStateWithLifecycle()
+    val captchaImage by viewModel.captchaImage.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
     var showResultsSheet by remember { mutableStateOf(false) }
     val years = remember {
@@ -126,10 +130,10 @@ fun ECourtSearchScreen(
 
             EnumDropdownField(
                 label = stringResource(id = R.string.ecourt_court_type),
-                options = CourtType.values().toList(),
+                options = CourtType.values().filter { it != CourtType.UNKNOWN },
                 selected = form.courtType,
                 onSelected = { form = form.copy(courtType = it) }
-            ) { it.name.replaceFirstChar(Char::uppercase) }
+            ) { it.displayLabel().replaceFirstChar(Char::uppercase) }
 
             OptionDropdownField(
                 label = stringResource(id = R.string.ecourt_state_code),
@@ -233,7 +237,7 @@ fun ECourtSearchScreen(
             )
 
             CaptchaField(
-                captchaUrl = captchaUrl,
+                captchaImage = captchaImage,
                 captchaValue = form.captcha,
                 onCaptchaChanged = { form = form.copy(captcha = it) },
                 onRefresh = viewModel::refreshCaptcha
@@ -485,7 +489,7 @@ private fun OfflineBanner(onRetry: () -> Unit) {
 
 @Composable
 private fun CaptchaField(
-    captchaUrl: String,
+    captchaImage: ByteArray?,
     captchaValue: String,
     onCaptchaChanged: (String) -> Unit,
     onRefresh: () -> Unit
@@ -495,11 +499,25 @@ private fun CaptchaField(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AsyncImage(
-                model = captchaUrl,
-                contentDescription = stringResource(id = R.string.ecourt_captcha_image),
-                modifier = Modifier.size(140.dp)
-            )
+            val imageBitmap = remember(captchaImage) {
+                captchaImage?.let {
+                    BitmapFactory.decodeByteArray(it, 0, it.size)
+                }?.asImageBitmap()
+            }
+            if (imageBitmap != null) {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = stringResource(id = R.string.ecourt_captcha_image),
+                    modifier = Modifier.size(140.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
             IconButton(onClick = onRefresh) {
                 Icon(
                     imageVector = Icons.Default.Refresh,

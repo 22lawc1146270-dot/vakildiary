@@ -348,15 +348,17 @@ class MainActivity : ComponentActivity() {
                                 TodayDocketBottomSheet(
                                     uiState = docketUiState,
                                     onDismiss = { isDocketSheetOpen = false },
-                                    onToggleHearing = { _, _ -> },
+                                    onToggleHearing = { hearingId, isCompleted ->
+                                        if (!isCompleted) {
+                                            docketViewModel.markHearingIncomplete(hearingId)
+                                        }
+                                    },
                                     onHearingOutcome = { hearingId ->
                                         pendingOutcomeHearingId = hearingId
                                         pendingVoiceNotePath = null
                                     },
                                     onToggleTask = { taskId, isCompleted ->
-                                        if (isCompleted) {
-                                            docketViewModel.markTaskComplete(taskId)
-                                        }
+                                        docketViewModel.markTaskComplete(taskId, isCompleted)
                                     }
                                 )
                             }

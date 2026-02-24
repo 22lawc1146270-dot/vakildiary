@@ -3,12 +3,15 @@ package com.vakildiary.app.presentation.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.domain.usecase.cases.GetAllCasesUseCase
+import com.vakildiary.app.domain.usecase.documents.PrepareDocumentForViewingUseCase
 import com.vakildiary.app.domain.usecase.judgment.SearchJudgmentsUseCase
 import com.vakildiary.app.domain.usecase.judgment.DownloadJudgmentUseCase
 import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,12 +20,14 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class JudgmentSearchViewModel @Inject constructor(
     private val searchJudgmentsUseCase: SearchJudgmentsUseCase,
     private val downloadJudgmentUseCase: DownloadJudgmentUseCase,
+    private val prepareDocumentForViewingUseCase: PrepareDocumentForViewingUseCase,
     getAllCasesUseCase: GetAllCasesUseCase
 ) : ViewModel() {
 
@@ -34,6 +39,9 @@ class JudgmentSearchViewModel @Inject constructor(
 
     private val _syncState = MutableStateFlow<JudgmentSyncState>(JudgmentSyncState.Idle)
     val syncState: StateFlow<JudgmentSyncState> = _syncState.asStateFlow()
+
+    private val _fileEvents = MutableSharedFlow<Result<File>>(extraBufferCapacity = 1)
+    val fileEvents = _fileEvents
 
     val casesState: StateFlow<CasePickerUiState> = getAllCasesUseCase()
         .map { result ->
@@ -50,6 +58,7 @@ class JudgmentSearchViewModel @Inject constructor(
             _uiState.value = JudgmentSearchUiState.Error("Please enter a year")
             return
         }
+        _downloadState.value = JudgmentDownloadUiState.Success("")
         viewModelScope.launch {
             _syncState.value = JudgmentSyncState.Syncing("Preparing judgments for $year...")
             _uiState.value = JudgmentSearchUiState.Loading
@@ -68,9 +77,15 @@ class JudgmentSearchViewModel @Inject constructor(
         viewModelScope.launch {
             _downloadState.value = JudgmentDownloadUiState.Loading
             _downloadState.value = when (val result = downloadJudgmentUseCase(item, caseId)) {
-                is Result.Success -> JudgmentDownloadUiState.Success("Judgment downloaded")
+                is Result.Success -> JudgmentDownloadUiState.Success("Judgment downloaded", result.data)
                 is Result.Error -> JudgmentDownloadUiState.Error(result.message)
             }
+        }
+    }
+
+    fun prepareFileForViewing(document: Document) {
+        viewModelScope.launch {
+            _fileEvents.emit(prepareDocumentForViewingUseCase(document.filePath))
         }
     }
 }
@@ -83,7 +98,7 @@ sealed interface JudgmentSearchUiState {
 
 sealed interface JudgmentDownloadUiState {
     object Loading : JudgmentDownloadUiState
-    data class Success(val message: String) : JudgmentDownloadUiState
+    data class Success(val message: String, val document: Document? = null) : JudgmentDownloadUiState
     data class Error(val message: String) : JudgmentDownloadUiState
 }
 

@@ -11,6 +11,7 @@ import com.vakildiary.app.core.Result
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.model.HearingHistory
 import com.vakildiary.app.domain.model.Payment
+import com.vakildiary.app.domain.model.displayLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,8 +39,8 @@ class PdfExportManager @Inject constructor(
             doc.add(Paragraph("Case Name: ${case.caseName}", bodyFont))
             doc.add(Paragraph("Case Number: ${case.caseNumber}", bodyFont))
             doc.add(Paragraph("Court: ${case.courtName}", bodyFont))
-            doc.add(Paragraph("Client: ${case.clientName}", bodyFont))
-            doc.add(Paragraph("Stage: ${case.caseStage}", bodyFont))
+            doc.add(Paragraph("Client: ${case.clientName.ifBlank { "Not set" }}", bodyFont))
+            doc.add(Paragraph("Stage: ${case.caseStage.displayLabel(case.customStage)}", bodyFont))
             doc.add(Paragraph("Next Hearing: ${formatDate(case.nextHearingDate)}", bodyFont))
             doc.close()
             Result.Success(file)
@@ -62,7 +63,7 @@ class PdfExportManager @Inject constructor(
 
             doc.add(Paragraph("Fee Ledger", titleFont))
             doc.add(Paragraph("Case: ${case.caseName} (${case.caseNumber})", bodyFont))
-            doc.add(Paragraph("Client: ${case.clientName}", bodyFont))
+            doc.add(Paragraph("Client: ${case.clientName.ifBlank { "Not set" }}", bodyFont))
 
             val table = PdfPTable(3)
             table.addCell("Date")
@@ -95,7 +96,7 @@ class PdfExportManager @Inject constructor(
 
             doc.add(Paragraph("Case History", titleFont))
             doc.add(Paragraph("Case: ${case.caseName} (${case.caseNumber})", bodyFont))
-            doc.add(Paragraph("Client: ${case.clientName}", bodyFont))
+            doc.add(Paragraph("Client: ${case.clientName.ifBlank { "Not set" }}", bodyFont))
             doc.add(Paragraph("Court: ${case.courtName}", bodyFont))
 
             val table = PdfPTable(5)

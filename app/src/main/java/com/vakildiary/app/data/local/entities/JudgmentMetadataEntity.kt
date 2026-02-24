@@ -12,6 +12,8 @@ data class JudgmentMetadataEntity(
     val bench: String?,
     val coram: String?,
     val caseNumber: String?,
+    val petitioner: String?,
+    val respondent: String?,
     val year: Int,
     val archiveName: String,
     val fileName: String,

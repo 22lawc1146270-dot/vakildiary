@@ -1,6 +1,7 @@
 package com.vakildiary.app.domain.usecase.documents
 
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.domain.model.Document
 import java.io.InputStream
 import javax.inject.Inject
 
@@ -11,7 +12,7 @@ class SaveScannedDocumentUseCase @Inject constructor(
         caseId: String?,
         fileName: String,
         inputStreamProvider: () -> InputStream
-    ): Result<Unit> {
+    ): Result<Document> {
         return attachDocumentUseCase(
             caseId = caseId,
             fileName = fileName,

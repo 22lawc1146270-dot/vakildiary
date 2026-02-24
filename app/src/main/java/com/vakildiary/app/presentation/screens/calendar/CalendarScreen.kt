@@ -417,8 +417,16 @@ data class CalendarEvent(
     val type: CalendarEventType
 )
 
-enum class CalendarEventType(val color: Color) {
-    HEARING(Color(0xFF5B6CFF)),
-    TASK(Color(0xFFF59E0B)),
-    MEETING(Color(0xFF3B82F6))
+enum class CalendarEventType {
+    HEARING,
+    TASK,
+    MEETING
 }
+
+val CalendarEventType.color: Color
+    @Composable
+    get() = when (this) {
+        CalendarEventType.HEARING -> VakilTheme.colors.accentPrimary
+        CalendarEventType.TASK -> VakilTheme.colors.warning
+        CalendarEventType.MEETING -> VakilTheme.colors.info
+    }

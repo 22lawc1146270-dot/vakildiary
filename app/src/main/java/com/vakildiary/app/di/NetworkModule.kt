@@ -6,9 +6,12 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.CookieManager
+import java.net.CookiePolicy
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -17,10 +20,38 @@ import javax.inject.Singleton
 object NetworkModule {
     private const val ECOURT_BASE_URL = "https://services.ecourts.gov.in/ecourtindia_v6/"
     private const val SC_JUDGMENT_BASE_URL = "https://indian-supreme-court-judgments.s3.amazonaws.com/"
+    private const val ECOURT_HOST = "services.ecourts.gov.in"
+    private const val ECOURT_REFERER = "https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index"
+    private const val ECOURT_ORIGIN = "https://services.ecourts.gov.in"
+    private const val ECOURT_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+    fun provideOkHttpClient(): OkHttpClient {
+        val cookieManager = CookieManager().apply {
+            setCookiePolicy(CookiePolicy.ACCEPT_ALL)
+        }
+        return OkHttpClient.Builder()
+            .cookieJar(JavaNetCookieJar(cookieManager))
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.url.host == ECOURT_HOST) {
+                    val updated = request.newBuilder()
+                        .header("User-Agent", ECOURT_USER_AGENT)
+                        .header("Accept", "text/html,application/json;q=0.9,*/*;q=0.8")
+                        .header("Accept-Language", "en-IN,en;q=0.9")
+                        .header("Origin", ECOURT_ORIGIN)
+                        .header("Referer", ECOURT_REFERER)
+                        .header("X-Requested-With", "XMLHttpRequest")
+                        .build()
+                    chain.proceed(updated)
+                } else {
+                    chain.proceed(request)
+                }
+            }
+            .build()
+    }
 
     @Provides
     @Singleton

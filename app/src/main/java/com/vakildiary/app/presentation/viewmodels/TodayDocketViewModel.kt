@@ -41,23 +41,35 @@ class TodayDocketViewModel @Inject constructor(
 
     val uiState: StateFlow<DocketUiState> = combine(
         caseDao.getCasesWithHearingToday(),
-        taskDao.getTasksDueToday(),
+        taskDao.getTasksDueTodayIncludingCompleted(),
         hearingHistoryDao.getCaseIdsWithHearingToday(),
         caseDao.getAllActiveCases(),
         userPreferencesRepository.advocateName
     ) { cases, tasks, completedCaseIds, allCases, advocateName ->
         val caseMap = allCases.associateBy { it.caseId }
-        val hearingItems = cases.map { caseEntity ->
+        val todayCaseIds = cases.map { it.caseId }.toSet()
+        val hearingCaseIds = cases.map { it.caseId } +
+            completedCaseIds.filterNot { todayCaseIds.contains(it) }
+        val hearingItems = hearingCaseIds.mapNotNull { caseId ->
+            val caseEntity = caseMap[caseId] ?: return@mapNotNull null
+            val isToday = todayCaseIds.contains(caseId)
+            val isCompleted = completedCaseIds.contains(caseId)
+            val nextDate = if (isToday) caseEntity.nextHearingDate else null
+            val subtitle = when {
+                isToday -> buildHearingSubtitle(caseEntity.courtName, nextDate)
+                isCompleted -> "${caseEntity.courtName} • Completed"
+                else -> caseEntity.courtName
+            }
             DocketItem(
                 id = caseEntity.caseId,
                 title = caseEntity.caseName,
-                subtitle = buildHearingSubtitle(caseEntity.courtName, caseEntity.nextHearingDate),
+                subtitle = subtitle,
                 type = DocketType.HEARING,
-                isCompleted = completedCaseIds.contains(caseEntity.caseId),
+                isCompleted = isCompleted,
                 isOverdue = false,
                 clientName = caseEntity.clientName,
                 courtName = caseEntity.courtName,
-                nextHearingDate = caseEntity.nextHearingDate
+                nextHearingDate = nextDate
             )
         }
 
@@ -131,6 +143,12 @@ class TodayDocketViewModel @Inject constructor(
         }
     }
 
+    fun markHearingIncomplete(hearingId: String) {
+        viewModelScope.launch {
+            hearingHistoryDao.deleteHearingsForCaseToday(hearingId)
+        }
+    }
+
     fun getCaseName(caseId: String): String? {
         return runCatching {
             // This is a best-effort non-suspending lookup from cached UI state.
@@ -141,9 +159,9 @@ class TodayDocketViewModel @Inject constructor(
         }.getOrNull()
     }
 
-    fun markTaskComplete(taskId: String) {
+    fun markTaskComplete(taskId: String, isCompleted: Boolean) {
         viewModelScope.launch {
-            markTaskCompleteUseCase(taskId, true)
+            markTaskCompleteUseCase(taskId, isCompleted)
         }
     }
 

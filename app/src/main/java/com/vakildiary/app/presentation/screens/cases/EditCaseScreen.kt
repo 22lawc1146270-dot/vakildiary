@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.viewmodels.EditCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
 import androidx.compose.runtime.remember
@@ -97,11 +98,11 @@ fun EditCaseScreen(
             )
 
             EnumDropdownField(
-                label = "Court Type*",
-                options = CourtType.values().toList(),
+                label = "Court Type",
+                options = courtTypeOptions(),
                 selected = formState.courtType,
                 onSelected = viewModel::onCourtTypeChanged
-            ) { it.name }
+            ) { it.displayLabel() }
 
             OutlinedTextField(
                 value = formState.courtName,
@@ -113,23 +114,31 @@ fun EditCaseScreen(
             OutlinedTextField(
                 value = formState.clientName,
                 onValueChange = viewModel::onClientNameChanged,
-                label = { Text(text = "Client Name*") },
+                label = { Text(text = "Client Name") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             EnumDropdownField(
-                label = "Case Type*",
-                options = CaseType.values().toList(),
+                label = "Case Type",
+                options = caseTypeOptions(),
                 selected = formState.caseType,
                 onSelected = viewModel::onCaseTypeChanged
-            ) { it.name }
+            ) { it.displayLabel() }
 
             EnumDropdownField(
-                label = "Case Stage*",
-                options = CaseStage.values().toList(),
+                label = "Case Stage",
+                options = caseStageOptions(),
                 selected = formState.caseStage,
                 onSelected = viewModel::onCaseStageChanged
-            ) { it.name }
+            ) { it.displayLabel(formState.customStage) }
+            if (formState.caseStage == CaseStage.CUSTOM) {
+                OutlinedTextField(
+                    value = formState.customStage,
+                    onValueChange = viewModel::onCustomStageChanged,
+                    label = { Text(text = "Custom Stage") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             OutlinedTextField(
                 value = formState.oppositeParty,
@@ -203,6 +212,19 @@ fun EditCaseScreen(
             }
         }
     }
+}
+
+private fun courtTypeOptions(): List<CourtType> {
+    return listOf(CourtType.UNKNOWN) + CourtType.values().filter { it != CourtType.UNKNOWN }
+}
+
+private fun caseTypeOptions(): List<CaseType> {
+    return listOf(CaseType.UNKNOWN) + CaseType.values().filter { it != CaseType.UNKNOWN }
+}
+
+private fun caseStageOptions(): List<CaseStage> {
+    val base = CaseStage.values().filter { it != CaseStage.UNKNOWN && it != CaseStage.CUSTOM }
+    return listOf(CaseStage.UNKNOWN) + base + CaseStage.CUSTOM
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

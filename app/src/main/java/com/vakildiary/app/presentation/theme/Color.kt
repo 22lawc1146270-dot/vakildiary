@@ -64,4 +64,18 @@ sealed class AccentPack(
         subtle = Color(0xFF2A1414),
         onAccent = Color(0xFFFFFFFF)
     )
+
+    object Emerald : AccentPack(
+        primary = Color(0xFF10B981),
+        soft = Color(0x3310B981),
+        subtle = Color(0xFF061B14),
+        onAccent = Color(0xFFFFFFFF)
+    )
+
+    object Gold : AccentPack(
+        primary = Color(0xFFD4AF37),
+        soft = Color(0x33D4AF37),
+        subtle = Color(0xFF1F1B0B),
+        onAccent = Color(0xFFFFFFFF)
+    )
 }

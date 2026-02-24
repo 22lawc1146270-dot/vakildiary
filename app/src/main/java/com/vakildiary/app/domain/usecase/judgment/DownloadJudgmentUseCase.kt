@@ -1,6 +1,7 @@
 package com.vakildiary.app.domain.usecase.judgment
 
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.domain.repository.SCJudgmentRepository
 import com.vakildiary.app.domain.usecase.documents.AttachDocumentUseCase
@@ -13,13 +14,14 @@ class DownloadJudgmentUseCase @Inject constructor(
     suspend operator fun invoke(
         judgment: JudgmentSearchResult,
         caseId: String?
-    ): Result<Unit> {
+    ): Result<Document> {
+        val fileName = buildCitationFileName(judgment)
         return when (val result = repository.downloadJudgment(judgment.judgmentId)) {
             is Result.Success -> {
                 val download = result.data
                 attachDocumentUseCase(
                     caseId = caseId,
-                    fileName = download.fileName,
+                    fileName = fileName,
                     mimeType = download.mimeType,
                     inputStreamProvider = { download.inputStream },
                     isScanned = false,
@@ -28,5 +30,34 @@ class DownloadJudgmentUseCase @Inject constructor(
             }
             is Result.Error -> Result.Error(result.message, result.throwable)
         }
+    }
+
+    private fun buildCitationFileName(item: JudgmentSearchResult): String {
+        val p = item.petitioner?.trim().orEmpty()
+        val r = item.respondent?.trim().orEmpty()
+        val c = item.caseNumber?.trim().orEmpty()
+        
+        val baseName = buildString {
+            if (p.isNotBlank() && r.isNotBlank()) {
+                append(p)
+                append(" v. ")
+                append(r)
+            } else if (p.isNotBlank()) {
+                append(p)
+            } else if (r.isNotBlank()) {
+                append(r)
+            }
+            
+            if (c.isNotBlank()) {
+                if (isNotEmpty()) append(" ")
+                append(c)
+            }
+            
+            if (isEmpty()) {
+                append(item.title)
+            }
+        }
+
+        return "$baseName.pdf"
     }
 }

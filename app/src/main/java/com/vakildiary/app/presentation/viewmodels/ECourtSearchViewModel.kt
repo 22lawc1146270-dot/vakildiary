@@ -8,6 +8,7 @@ import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.ECourtComplexOption
 import com.vakildiary.app.domain.model.ECourtOption
 import com.vakildiary.app.domain.model.ECourtTokenResult
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.domain.usecase.cases.GetCaseByNumberUseCase
 import com.vakildiary.app.domain.usecase.cases.UpdateCaseUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCaptchaUseCase
@@ -55,6 +56,8 @@ class ECourtSearchViewModel @Inject constructor(
 
     private val _captchaUrl = MutableStateFlow("")
     val captchaUrl: StateFlow<String> = _captchaUrl.asStateFlow()
+    private val _captchaImage = MutableStateFlow<ByteArray?>(null)
+    val captchaImage: StateFlow<ByteArray?> = _captchaImage.asStateFlow()
 
     private var sessionToken: String? = null
 
@@ -90,6 +93,7 @@ class ECourtSearchViewModel @Inject constructor(
                 is Result.Success -> {
                     sessionToken = result.data.token
                     _captchaUrl.value = result.data.imageUrl
+                    _captchaImage.value = result.data.imageBytes
                     trackingStore.saveLastAppToken(result.data.token)
                 }
                 is Result.Error -> Unit
@@ -173,6 +177,7 @@ class ECourtSearchViewModel @Inject constructor(
         val requiresEstablishment = (lookupState.value as? ECourtLookupUiState.Success)
             ?.data
             ?.requiresEstablishment == true
+        val normalizedCaptcha = form.captcha.filterNot { it.isWhitespace() }
         if (form.stateCode.isBlank() ||
             form.districtCode.isBlank() ||
             form.courtCode.isBlank() ||
@@ -180,7 +185,7 @@ class ECourtSearchViewModel @Inject constructor(
             form.caseType.isBlank() ||
             form.caseNumber.isBlank() ||
             form.year.isBlank() ||
-            form.captcha.isBlank()
+            normalizedCaptcha.isBlank()
         ) {
             _uiState.value = ECourtSearchUiState.Error("Please fill all required fields")
             return
@@ -201,7 +206,7 @@ class ECourtSearchViewModel @Inject constructor(
                 caseType = form.caseType.trim(),
                 caseNumber = form.caseNumber.trim(),
                 year = form.year.trim(),
-                captcha = form.captcha.trim()
+                captcha = normalizedCaptcha
             )
             _uiState.value = when (result) {
                 is Result.Success -> {
@@ -213,13 +218,19 @@ class ECourtSearchViewModel @Inject constructor(
                         courtCode = form.courtCode.trim(),
                         caseTypeCode = form.caseType.trim()
                     )
-                    trackingStore.saveLastCaptcha(form.captcha.trim(), null)
+                    trackingStore.saveLastCaptcha(normalizedCaptcha, null)
                     result.data.captchaImageUrl?.let { _captchaUrl.value = it }
+                    result.data.captchaImageBytes?.let { _captchaImage.value = it }
                     val parsed = ECourtParser.parse(result.data.caseHtml, form)
                     handleStatusUpdates(parsed, form)
                     ECourtSearchUiState.Success(parsed)
                 }
-                is Result.Error -> ECourtSearchUiState.Error(result.message)
+                is Result.Error -> {
+                    if (result.message.contains("captcha", ignoreCase = true)) {
+                        refreshCaptcha()
+                    }
+                    ECourtSearchUiState.Error(result.message)
+                }
             }
         }
     }
@@ -239,7 +250,13 @@ class ECourtSearchViewModel @Inject constructor(
             val dateChanged = newNextDate != null && newNextDate != existing.nextHearingDate
 
             if (stageChanged || dateChanged) {
-                updateCaseUseCase(existing.copy(caseStage = newStage, nextHearingDate = newNextDate))
+                updateCaseUseCase(
+                    existing.copy(
+                        caseStage = newStage,
+                        customStage = null,
+                        nextHearingDate = newNextDate
+                    )
+                )
                 trackingStore.save(
                     existing.caseId,
                     com.vakildiary.app.domain.model.ECourtTrackingInfo(
@@ -257,7 +274,11 @@ class ECourtSearchViewModel @Inject constructor(
                     )
                 )
                 val message = buildString {
-                    if (stageChanged) append("Stage: ${existing.caseStage.name} → ${newStage.name}")
+                    if (stageChanged) {
+                        append(
+                            "Stage: ${existing.caseStage.displayLabel(existing.customStage)} → ${newStage.displayLabel()}"
+                        )
+                    }
                     if (dateChanged) {
                         if (isNotEmpty()) append(" • ")
                         append("Next: ${item.nextHearingDate}")

@@ -58,6 +58,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.vakildiary.app.domain.model.CaseStage
+import com.vakildiary.app.domain.model.displayLabel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,6 +135,7 @@ fun CaseDetailScreen(
                             clientName = state.case.clientName,
                             nextHearingDate = state.case.nextHearingDate,
                             caseStage = state.case.caseStage,
+                            customStage = state.case.customStage,
                             agreedFees = state.case.totalAgreedFees ?: 0.0,
                             totalReceived = state.payments.sumOf { it.amount },
                             advocateName = advocateName ?: "Counsel",
@@ -153,7 +155,18 @@ fun CaseDetailScreen(
                             },
                             onStageChanged = { newStage ->
                                 scope.launch {
-                                    viewModel.updateCase(state.case.copy(caseStage = newStage))
+                                    val customStage = if (newStage == CaseStage.CUSTOM) state.case.customStage else null
+                                    viewModel.updateCase(state.case.copy(caseStage = newStage, customStage = customStage))
+                                }
+                            },
+                            onCustomStageChanged = { custom ->
+                                scope.launch {
+                                    viewModel.updateCase(
+                                        state.case.copy(
+                                            caseStage = CaseStage.CUSTOM,
+                                            customStage = custom.trim().ifBlank { null }
+                                        )
+                                    )
                                 }
                             },
                             onArchive = {
@@ -199,6 +212,7 @@ private fun OverviewTab(
     clientName: String,
     nextHearingDate: Long?,
     caseStage: CaseStage,
+    customStage: String?,
     agreedFees: Double,
     totalReceived: Double,
     advocateName: String,
@@ -213,6 +227,7 @@ private fun OverviewTab(
     onExportHistory: () -> Unit,
     onUpdateNextHearing: (Long) -> Unit,
     onStageChanged: (CaseStage) -> Unit,
+    onCustomStageChanged: (String) -> Unit,
     onArchive: () -> Unit
 ) {
     val outstanding = (agreedFees - totalReceived).coerceAtLeast(0.0)
@@ -247,7 +262,7 @@ private fun OverviewTab(
                 IconButton(onClick = {
                     ShareUtils.shareHearingDateText(
                         context = context,
-                        clientName = clientName,
+                        clientName = clientName.takeIf { it.isNotBlank() } ?: "Client",
                         caseName = caseName,
                         date = formatDate(nextHearingDate),
                         court = courtName,
@@ -268,7 +283,19 @@ private fun OverviewTab(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "Stage:")
-            CaseStageDropdown(selected = caseStage, onSelected = onStageChanged)
+            CaseStageDropdown(
+                selected = caseStage,
+                customStage = customStage,
+                onSelected = onStageChanged
+            )
+        }
+        if (caseStage == CaseStage.CUSTOM) {
+            OutlinedTextField(
+                value = customStage.orEmpty(),
+                onValueChange = onCustomStageChanged,
+                label = { Text(text = "Custom Stage") },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -345,14 +372,18 @@ private fun OverviewTab(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CaseStageDropdown(selected: CaseStage, onSelected: (CaseStage) -> Unit) {
+private fun CaseStageDropdown(
+    selected: CaseStage,
+    customStage: String?,
+    onSelected: (CaseStage) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selected.name,
+            value = selected.displayLabel(customStage),
             onValueChange = {},
             readOnly = true,
             modifier = Modifier.menuAnchor(),
@@ -364,9 +395,12 @@ private fun CaseStageDropdown(selected: CaseStage, onSelected: (CaseStage) -> Un
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            CaseStage.values().forEach { stage ->
+            val stages = listOf(CaseStage.UNKNOWN) +
+                CaseStage.values().filter { it != CaseStage.UNKNOWN && it != CaseStage.CUSTOM } +
+                CaseStage.CUSTOM
+            stages.forEach { stage ->
                 DropdownMenuItem(
-                    text = { Text(text = stage.name) },
+                    text = { Text(text = stage.displayLabel()) },
                     onClick = {
                         onSelected(stage)
                         expanded = false
@@ -405,7 +439,7 @@ private fun HistoryTab(
                     IconButton(onClick = {
                         ShareUtils.shareHearingDateText(
                             context = context,
-                            clientName = clientName,
+                            clientName = clientName.takeIf { it.isNotBlank() } ?: "Client",
                             caseName = caseName,
                             date = formatDate(hearing.hearingDate),
                             court = courtName,

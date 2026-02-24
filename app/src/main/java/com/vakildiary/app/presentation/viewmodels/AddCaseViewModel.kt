@@ -9,6 +9,7 @@ import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
 import com.vakildiary.app.domain.model.ECourtTrackingInfo
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.domain.usecase.cases.AddCaseUseCase
 import com.vakildiary.app.domain.usecase.cases.GetCaseByNumberUseCase
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
@@ -43,7 +44,13 @@ class AddCaseViewModel @Inject constructor(
     fun onCourtNameChanged(value: String) = updateForm { it.copy(courtName = value) }
     fun onClientNameChanged(value: String) = updateForm { it.copy(clientName = value) }
     fun onCaseTypeChanged(value: CaseType) = updateForm { it.copy(caseType = value) }
-    fun onCaseStageChanged(value: CaseStage) = updateForm { it.copy(caseStage = value) }
+    fun onCaseStageChanged(value: CaseStage) = updateForm {
+        it.copy(
+            caseStage = value,
+            customStage = if (value == CaseStage.CUSTOM) it.customStage else ""
+        )
+    }
+    fun onCustomStageChanged(value: String) = updateForm { it.copy(customStage = value) }
 
     fun onOppositePartyChanged(value: String) = updateForm { it.copy(oppositeParty = value) }
     fun onJudgeChanged(value: String) = updateForm { it.copy(assignedJudge = value) }
@@ -111,6 +118,18 @@ class AddCaseViewModel @Inject constructor(
 
         val fees = state.totalAgreedFees.trim()
         val parsedFees = if (fees.isBlank()) null else fees.toDoubleOrNull()
+        val customStage = state.customStage.trim().ifBlank { null }
+        val stage = when (state.caseStage) {
+            CaseStage.CUSTOM -> {
+                if (customStage == null) {
+                    _uiState.value = AddCaseUiState.Error("Please enter a custom stage")
+                    return
+                }
+                CaseStage.CUSTOM
+            }
+            null -> CaseStage.UNKNOWN
+            else -> state.caseStage
+        }
         if (fees.isNotBlank() && (parsedFees == null || parsedFees <= 0.0)) {
             _uiState.value = AddCaseUiState.Error("Total agreed fees must be a positive number")
             return
@@ -133,13 +152,14 @@ class AddCaseViewModel @Inject constructor(
                 caseName = state.caseName.trim(),
                 caseNumber = state.caseNumber.trim(),
                 courtName = state.courtName.trim(),
-                courtType = state.courtType!!,
+                courtType = state.courtType ?: CourtType.UNKNOWN,
                 clientName = state.clientName.trim(),
                 clientPhone = state.clientPhone.trim().ifBlank { null },
                 clientEmail = state.clientEmail.trim().ifBlank { null },
                 oppositeParty = state.oppositeParty.trim().ifBlank { null },
-                caseType = state.caseType!!,
-                caseStage = state.caseStage!!,
+                caseType = state.caseType ?: CaseType.UNKNOWN,
+                caseStage = stage,
+                customStage = if (stage == CaseStage.CUSTOM) customStage else null,
                 assignedJudge = state.assignedJudge.trim().ifBlank { null },
                 firNumber = state.firNumber.trim().ifBlank { null },
                 actsAndSections = state.actsAndSections.trim().ifBlank { null },
@@ -158,7 +178,7 @@ class AddCaseViewModel @Inject constructor(
                     ecourtTrackingInfo?.let { info ->
                         ecourtTrackingStore.save(
                             caseId = case.caseId,
-                            info = info.copy(lastStage = case.caseStage.name)
+                            info = info.copy(lastStage = case.caseStage.displayLabel(case.customStage))
                         )
                     }
                     AddCaseUiState.Success(isSaved = true)
@@ -180,11 +200,12 @@ class AddCaseViewModel @Inject constructor(
 data class AddCaseFormState(
     val caseName: String = "",
     val caseNumber: String = "",
-    val courtType: CourtType? = null,
+    val courtType: CourtType? = CourtType.UNKNOWN,
     val courtName: String = "",
     val clientName: String = "",
-    val caseType: CaseType? = null,
-    val caseStage: CaseStage? = null,
+    val caseType: CaseType? = CaseType.UNKNOWN,
+    val caseStage: CaseStage? = CaseStage.UNKNOWN,
+    val customStage: String = "",
     val oppositeParty: String = "",
     val assignedJudge: String = "",
     val firNumber: String = "",
@@ -195,12 +216,10 @@ data class AddCaseFormState(
     val notes: String = ""
 ) {
     fun isValid(): Boolean {
+        val customStageValid = caseStage != CaseStage.CUSTOM || customStage.isNotBlank()
         return caseName.isNotBlank() &&
             caseNumber.isNotBlank() &&
-            courtType != null &&
             courtName.isNotBlank() &&
-            clientName.isNotBlank() &&
-            caseType != null &&
-            caseStage != null
+            customStageValid
     }
 }

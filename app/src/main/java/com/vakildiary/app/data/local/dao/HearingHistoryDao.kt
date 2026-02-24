@@ -20,4 +20,9 @@ interface HearingHistoryDao {
 
     @Query("SELECT DISTINCT case_id FROM hearing_history WHERE DATE(hearingDate/1000,'unixepoch') = DATE('now')")
     fun getCaseIdsWithHearingToday(): Flow<List<String>>
+
+    @Query(
+        "DELETE FROM hearing_history WHERE case_id = :caseId AND DATE(hearingDate/1000,'unixepoch') = DATE('now')"
+    )
+    suspend fun deleteHearingsForCaseToday(caseId: String)
 }

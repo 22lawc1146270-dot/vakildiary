@@ -29,7 +29,7 @@ import com.vakildiary.app.data.local.entities.TaskEntity
         MeetingEntity::class,
         JudgmentMetadataEntity::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class VakilDiaryDatabase : RoomDatabase() {
@@ -69,6 +69,17 @@ abstract class VakilDiaryDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE judgment_metadata ADD COLUMN petitioner TEXT")
+                db.execSQL("ALTER TABLE judgment_metadata ADD COLUMN respondent TEXT")
+            }
+        }
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE cases ADD COLUMN customStage TEXT")
             }
         }
     }

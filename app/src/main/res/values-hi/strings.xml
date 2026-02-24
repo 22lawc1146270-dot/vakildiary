@@ -63,6 +63,8 @@
     <string name="judgment_results">परिणाम</string>
     <string name="judgment_preview_button">पूर्वावलोकन</string>
     <string name="judgment_download_button">निर्णय डाउनलोड करें</string>
+    <string name="judgment_open_button">PDF खोलें</string>
+    <string name="judgment_share_button">PDF साझा करें</string>
     <string name="judgment_date">तारीख</string>
     <string name="judgment_id">निर्णय आईडी</string>
     <string name="judgment_citation">सिटेशन</string>

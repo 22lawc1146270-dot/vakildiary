@@ -26,6 +26,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE DATE(deadline/1000,'unixepoch') = DATE('now') AND isCompleted = 0")
     fun getTasksDueToday(): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE DATE(deadline/1000,'unixepoch') = DATE('now')")
+    fun getTasksDueTodayIncludingCompleted(): Flow<List<TaskEntity>>
+
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND deadline < :now ORDER BY deadline ASC")
     fun getOverdueTasks(now: Long): Flow<List<TaskEntity>>
 

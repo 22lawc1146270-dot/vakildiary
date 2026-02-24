@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
+import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
@@ -147,11 +148,11 @@ fun AddCaseScreen(
                     label = "Case Number*"
                 )
                 EnumDropdownField(
-                    label = "Court Type*",
-                    options = CourtType.values().toList(),
+                    label = "Court Type",
+                    options = courtTypeOptions(),
                     selected = formState.courtType,
                     onSelected = viewModel::onCourtTypeChanged
-                ) { it.name }
+                ) { it.displayLabel() }
                 AppTextField(
                     value = formState.courtName,
                     onValueChange = viewModel::onCourtNameChanged,
@@ -160,23 +161,30 @@ fun AddCaseScreen(
                 AppTextField(
                     value = formState.clientName,
                     onValueChange = viewModel::onClientNameChanged,
-                    label = "Client Name*"
+                    label = "Client Name"
                 )
             }
 
             FormSection("Case Details") {
                 EnumDropdownField(
-                    label = "Case Category*",
-                    options = CaseType.values().toList(),
+                    label = "Case Category",
+                    options = caseTypeOptions(),
                     selected = formState.caseType,
                     onSelected = viewModel::onCaseTypeChanged
-                ) { it.name }
+                ) { it.displayLabel() }
                 EnumDropdownField(
-                    label = "Current Stage*",
-                    options = CaseStage.values().toList(),
+                    label = "Current Stage",
+                    options = caseStageOptions(),
                     selected = formState.caseStage,
                     onSelected = viewModel::onCaseStageChanged
-                ) { it.name }
+                ) { it.displayLabel(formState.customStage) }
+                if (formState.caseStage == CaseStage.CUSTOM) {
+                    AppTextField(
+                        value = formState.customStage,
+                        onValueChange = viewModel::onCustomStageChanged,
+                        label = "Custom Stage"
+                    )
+                }
                 AppTextField(
                     value = formState.oppositeParty,
                     onValueChange = viewModel::onOppositePartyChanged,
@@ -322,7 +330,7 @@ private fun <T> EnumDropdownField(
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
-            value = selectedLabel.replace("_", " "),
+            value = selectedLabel,
             onValueChange = {},
             readOnly = true,
             label = { Text(text = label, style = VakilTheme.typography.bodyMedium) },
@@ -351,7 +359,7 @@ private fun <T> EnumDropdownField(
                 DropdownMenuItem(
                     text = { 
                         Text(
-                            text = labelFor(option).replace("_", " "),
+                            text = labelFor(option),
                             style = VakilTheme.typography.bodyMedium,
                             color = VakilTheme.colors.textPrimary
                         ) 
@@ -364,4 +372,17 @@ private fun <T> EnumDropdownField(
             }
         }
     }
+}
+
+private fun courtTypeOptions(): List<CourtType> {
+    return listOf(CourtType.UNKNOWN) + CourtType.values().filter { it != CourtType.UNKNOWN }
+}
+
+private fun caseTypeOptions(): List<CaseType> {
+    return listOf(CaseType.UNKNOWN) + CaseType.values().filter { it != CaseType.UNKNOWN }
+}
+
+private fun caseStageOptions(): List<CaseStage> {
+    val base = CaseStage.values().filter { it != CaseStage.UNKNOWN && it != CaseStage.CUSTOM }
+    return listOf(CaseStage.UNKNOWN) + base + CaseStage.CUSTOM
 }

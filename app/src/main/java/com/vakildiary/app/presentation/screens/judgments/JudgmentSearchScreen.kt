@@ -1,5 +1,6 @@
 package com.vakildiary.app.presentation.screens.judgments
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,17 +31,23 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.R
+import com.vakildiary.app.core.Result
+import com.vakildiary.app.core.ShareUtils
 import com.vakildiary.app.domain.model.Case
+import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.presentation.viewmodels.JudgmentDownloadUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSyncState
@@ -72,6 +80,31 @@ fun JudgmentSearchScreen(
     val casesState by viewModel.casesState.collectAsStateWithLifecycle()
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
+    val context = LocalContext.current
+    var pendingAction by remember { mutableStateOf<JudgmentFileAction?>(null) }
+    var pendingDocument by remember { mutableStateOf<Document?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.fileEvents.collect { result ->
+            when (result) {
+                is Result.Success -> {
+                    val action = pendingAction
+                    val document = pendingDocument
+                    if (action != null && document != null) {
+                        when (action) {
+                            JudgmentFileAction.OPEN -> ShareUtils.openFile(context, result.data, document.fileType)
+                            JudgmentFileAction.SHARE -> ShareUtils.shareFile(context, result.data, document.fileType)
+                        }
+                    }
+                    pendingAction = null
+                    pendingDocument = null
+                }
+                is Result.Error -> {
+                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -178,16 +211,65 @@ fun JudgmentSearchScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-                when (downloadState) {
-                    JudgmentDownloadUiState.Loading -> CircularProgressIndicator()
+                when (val state = downloadState) {
+                    JudgmentDownloadUiState.Loading -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Text(
+                                text = stringResource(id = R.string.judgment_downloading),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     is JudgmentDownloadUiState.Error -> Text(
-                        text = (downloadState as JudgmentDownloadUiState.Error).message,
+                        text = state.message,
                         color = MaterialTheme.colorScheme.error
                     )
                     is JudgmentDownloadUiState.Success -> {
-                        val message = (downloadState as JudgmentDownloadUiState.Success).message
-                        if (message.isNotBlank()) {
-                            Text(text = message, color = MaterialTheme.colorScheme.primary)
+                        if (state.document != null) {
+                            Text(
+                                text = stringResource(id = R.string.judgment_download_success_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        val document = state.document
+                        if (document != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        pendingAction = JudgmentFileAction.OPEN
+                                        pendingDocument = document
+                                        viewModel.prepareFileForViewing(document)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(text = stringResource(id = R.string.judgment_open_button))
+                                }
+                                Button(
+                                    onClick = {
+                                        pendingAction = JudgmentFileAction.SHARE
+                                        pendingDocument = document
+                                        viewModel.prepareFileForViewing(document)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(text = stringResource(id = R.string.judgment_share_button))
+                                }
+                            }
                         }
                     }
                 }
@@ -255,33 +337,67 @@ private fun JudgmentRow(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = item.title, style = MaterialTheme.typography.titleMedium)
-            val meta = listOfNotNull(
-                item.citation?.takeIf { it.isNotBlank() },
-                item.bench?.takeIf { it.isNotBlank() }
-            ).joinToString(" • ")
-            if (meta.isNotBlank()) {
-                Text(text = meta, style = MaterialTheme.typography.bodySmall)
+            val heading = remember(item) {
+                val p = item.petitioner?.trim().orEmpty()
+                val r = item.respondent?.trim().orEmpty()
+                val c = item.caseNumber?.trim().orEmpty()
+                
+                buildString {
+                    if (p.isNotBlank() && r.isNotBlank()) {
+                        append(p)
+                        append(" v. ")
+                        append(r)
+                    } else if (p.isNotBlank()) {
+                        append(p)
+                    } else if (r.isNotBlank()) {
+                        append(r)
+                    }
+                    
+                    if (c.isNotBlank()) {
+                        if (isNotEmpty()) append(" ")
+                        append(c)
+                    }
+                    
+                    if (isEmpty()) {
+                        append(item.title)
+                    }
+                }
             }
-            if (!item.caseNumber.isNullOrBlank()) {
-                Text(
-                    text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            
+            Text(
+                text = heading, 
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
             if (!item.coram.isNullOrBlank()) {
                 Text(
                     text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            
             item.dateOfJudgment?.let { date ->
                 Text(
                     text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            
+            if (!item.citation.isNullOrBlank() || !item.bench.isNullOrBlank()) {
+                val meta = listOfNotNull(
+                    item.citation?.takeIf { it.isNotBlank() },
+                    item.bench?.takeIf { it.isNotBlank() }
+                ).joinToString(" • ")
+                if (meta.isNotBlank()) {
+                    Text(text = meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                }
+            }
+            
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
                     onClick = onPreview,
                     modifier = Modifier.weight(1f)
@@ -312,21 +428,50 @@ private fun JudgmentPreview(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = item.title, style = MaterialTheme.typography.titleMedium)
-            item.caseNumber?.let { caseNumber ->
-                Text(text = "${stringResource(id = R.string.judgment_case_number)}: $caseNumber")
+            val heading = remember(item) {
+                val p = item.petitioner?.trim().orEmpty()
+                val r = item.respondent?.trim().orEmpty()
+                val c = item.caseNumber?.trim().orEmpty()
+                
+                buildString {
+                    if (p.isNotBlank() && r.isNotBlank()) {
+                        append(p)
+                        append(" v. ")
+                        append(r)
+                    } else if (p.isNotBlank()) {
+                        append(p)
+                    } else if (r.isNotBlank()) {
+                        append(r)
+                    }
+                    
+                    if (c.isNotBlank()) {
+                        if (isNotEmpty()) append(" ")
+                        append(c)
+                    }
+                    
+                    if (isEmpty()) {
+                        append(item.title)
+                    }
+                }
+            }
+            
+            Text(
+                text = heading, 
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            if (!item.coram.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}")
+            }
+            item.dateOfJudgment?.let { date ->
+                Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
             }
             if (!item.citation.isNullOrBlank()) {
                 Text(text = "${stringResource(id = R.string.judgment_citation)}: ${item.citation}")
             }
             if (!item.bench.isNullOrBlank()) {
                 Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
-            }
-            if (!item.coram.isNullOrBlank()) {
-                Text(text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}")
-            }
-            item.dateOfJudgment?.let { date ->
-                Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
             }
         Button(
             onClick = onDownload,
@@ -392,3 +537,5 @@ private fun formatDate(epochMillis: Long): String {
         .toLocalDate()
     return date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 }
+
+private enum class JudgmentFileAction { OPEN, SHARE }

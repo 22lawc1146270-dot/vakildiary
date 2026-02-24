@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.Task
+import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.TaskListViewModel
 import com.vakildiary.app.presentation.viewmodels.state.TaskListUiState
 import java.time.Instant
@@ -116,12 +117,12 @@ private fun TaskList(
                     val (icon, tint, label) = when (direction) {
                         SwipeToDismissBoxValue.StartToEnd -> {
                             if (task.isCompleted) {
-                                Triple(Icons.Default.Check, Color(0xFF1E7A4A), "Reopen")
+                                Triple(Icons.Default.Check, VakilTheme.colors.success, "Reopen")
                             } else {
-                                Triple(Icons.Default.Check, Color(0xFF1E7A4A), "Complete")
+                                Triple(Icons.Default.Check, VakilTheme.colors.success, "Complete")
                             }
                         }
-                        SwipeToDismissBoxValue.EndToStart -> Triple(Icons.Default.Delete, Color(0xFFC0392B), "Delete")
+                        SwipeToDismissBoxValue.EndToStart -> Triple(Icons.Default.Delete, VakilTheme.colors.error, "Delete")
                         else -> Triple(Icons.Default.Check, Color.Transparent, "")
                     }
                     SwipeBackground(icon = icon, tint = tint, label = label)
@@ -142,7 +143,7 @@ private fun TaskList(
                             )
                         }
                         if (!task.isCompleted && task.deadline < System.currentTimeMillis()) {
-                            Text(text = "Overdue", color = Color(0xFFC0392B))
+                            Text(text = "Overdue", color = VakilTheme.colors.error)
                         }
                     }
                 }

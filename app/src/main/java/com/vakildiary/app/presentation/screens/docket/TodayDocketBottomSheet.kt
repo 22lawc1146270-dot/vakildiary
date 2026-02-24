@@ -239,7 +239,7 @@ private fun DocketRow(
                 IconButton(onClick = {
                     ShareUtils.shareHearingDateText(
                         context = context,
-                        clientName = item.clientName ?: "Client",
+                        clientName = item.clientName?.takeIf { it.isNotBlank() } ?: "Client",
                         caseName = item.title,
                         date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
                         court = item.courtName ?: "",
