@@ -13,8 +13,11 @@ data class MetadataIndexDto(
 )
 
 data class MetadataIndexPartDto(
-    val part: String?,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("part") val part: String? = null,
     val etag: String?,
     val size: Long?,
     val files: List<String>
-)
+) {
+    fun partName(): String? = name ?: part
+}

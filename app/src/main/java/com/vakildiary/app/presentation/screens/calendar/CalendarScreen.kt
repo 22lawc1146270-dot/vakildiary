@@ -1,37 +1,20 @@
 package com.vakildiary.app.presentation.screens.calendar
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +26,8 @@ import java.time.format.DateTimeFormatter
 import com.vakildiary.app.presentation.viewmodels.CalendarViewModel
 import com.vakildiary.app.presentation.viewmodels.TodayDocketViewModel
 import com.vakildiary.app.presentation.screens.docket.HearingOutcomeDialog
+import com.vakildiary.app.presentation.theme.VakilTheme
+import com.vakildiary.app.presentation.components.AppCard
 import android.content.Intent
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -50,8 +35,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import android.net.Uri
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
+fun CalendarScreen(
+    onAddTask: () -> Unit = {},
+    viewModel: CalendarViewModel = hiltViewModel()
+) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var isWeekView by remember { mutableStateOf(false) }
     val events by viewModel.events.collectAsStateWithLifecycle()
@@ -75,47 +64,54 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
         viewModel.loadMonth(month.atDay(1))
     }
 
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), style = MaterialTheme.typography.titleLarge)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = !isWeekView,
-                onClick = { isWeekView = false },
-                label = { Text(text = "Month") }
-            )
-            FilterChip(
-                selected = isWeekView,
-                onClick = { isWeekView = true },
-                label = { Text(text = "Week") }
-            )
-        }
-
-        DayOfWeekHeader()
-
-        if (isWeekView) {
-            WeekRow(
-                selectedDate = selectedDate,
-                eventsByDate = eventsByDate,
-                onDateSelected = { selectedDate = it }
-            )
-        } else {
-            MonthGrid(
-                days = monthDays,
-                selectedDate = selectedDate,
-                eventsByDate = eventsByDate,
-                onDateSelected = { selectedDate = it }
-            )
-        }
-
-        AnimatedVisibility(
-            visible = true,
-            enter = slideInVertically(animationSpec = tween(250), initialOffsetY = { it }),
-            exit = slideOutVertically(animationSpec = tween(200), targetOffsetY = { it })
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VakilTheme.colors.bgPrimary
+    ) {
+        Column(
+            modifier = Modifier.padding(VakilTheme.spacing.md),
+            verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                    style = VakilTheme.typography.headlineMedium,
+                    color = VakilTheme.colors.textPrimary
+                )
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.xs)) {
+                    ViewToggleChip(selected = !isWeekView, onClick = { isWeekView = false }, label = "Month")
+                    ViewToggleChip(selected = isWeekView, onClick = { isWeekView = true }, label = "Week")
+                }
+            }
+
+            DayOfWeekHeader()
+
+            if (isWeekView) {
+                WeekRow(
+                    selectedDate = selectedDate,
+                    eventsByDate = eventsByDate,
+                    onDateSelected = { selectedDate = it }
+                )
+            } else {
+                MonthGrid(
+                    days = monthDays,
+                    selectedDate = selectedDate,
+                    eventsByDate = eventsByDate,
+                    onDateSelected = { selectedDate = it }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.sm))
+
             DayAgendaPanel(
                 date = selectedDate,
                 events = eventsByDate[selectedDate].orEmpty(),
+                onAddTask = onAddTask,
                 onEventClick = { event ->
                     if (event.type == CalendarEventType.HEARING) {
                         pendingOutcomeHearingId = event.id
@@ -165,11 +161,34 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
 }
 
 @Composable
+private fun ViewToggleChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (selected) VakilTheme.colors.accentPrimary else VakilTheme.colors.bgElevated,
+        contentColor = if (selected) VakilTheme.colors.onAccent else VakilTheme.colors.textSecondary
+    ) {
+        Text(
+            text = label,
+            style = VakilTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
 private fun DayOfWeekHeader() {
     val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
         days.forEach { day ->
-            Text(text = day, style = MaterialTheme.typography.labelMedium)
+            Text(
+                text = day,
+                style = VakilTheme.typography.labelSmall,
+                color = VakilTheme.colors.textTertiary,
+                modifier = Modifier.width(42.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
@@ -181,9 +200,9 @@ private fun MonthGrid(
     eventsByDate: Map<LocalDate, List<CalendarEvent>>,
     onDateSelected: (LocalDate) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)) {
         days.chunked(7).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                 week.forEach { date ->
                     DayCell(
                         date = date,
@@ -205,7 +224,7 @@ private fun WeekRow(
 ) {
     val startOfWeek = selectedDate.minusDays(((selectedDate.dayOfWeek.value + 6) % 7).toLong())
     val week = (0..6).map { startOfWeek.plusDays(it.toLong()) }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
         week.forEach { date ->
             DayCell(
                 date = date,
@@ -224,23 +243,32 @@ private fun DayCell(
     events: List<CalendarEvent>,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-    val textColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-
+    val isToday = date == LocalDate.now()
+    
     Box(
         modifier = Modifier
             .size(42.dp)
-            .border(1.dp, borderColor)
+            .background(
+                color = if (isSelected) VakilTheme.colors.accentPrimary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
             .clickable(enabled = date != null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (date != null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = date.dayOfMonth.toString(), color = textColor, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = date.dayOfMonth.toString(),
+                    color = when {
+                        isSelected -> VakilTheme.colors.onAccent
+                        isToday -> VakilTheme.colors.accentPrimary
+                        else -> VakilTheme.colors.textPrimary
+                    },
+                    style = VakilTheme.typography.labelMedium,
+                    fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+                )
                 if (events.isNotEmpty()) {
-                    DotRow(events = events)
-                } else {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    DotRow(events = events, isSelected = isSelected)
                 }
             }
         }
@@ -248,13 +276,16 @@ private fun DayCell(
 }
 
 @Composable
-private fun DotRow(events: List<CalendarEvent>) {
+private fun DotRow(events: List<CalendarEvent>, isSelected: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 2.dp)) {
         events.take(3).forEach { event ->
             Box(
                 modifier = Modifier
-                    .size(6.dp)
-                    .background(event.type.color, shape = MaterialTheme.shapes.small)
+                    .size(4.dp)
+                    .background(
+                        if (isSelected) VakilTheme.colors.onAccent else event.type.color,
+                        shape = CircleShape
+                    )
             )
         }
     }
@@ -264,38 +295,66 @@ private fun DotRow(events: List<CalendarEvent>) {
 private fun DayAgendaPanel(
     date: LocalDate,
     events: List<CalendarEvent>,
+    onAddTask: () -> Unit,
     onEventClick: (CalendarEvent) -> Unit
 ) {
-    Surface(
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = date.format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy")),
-                style = MaterialTheme.typography.titleMedium
+                text = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                style = VakilTheme.typography.labelMedium,
+                color = VakilTheme.colors.accentPrimary
             )
+            TextButton(onClick = onAddTask) {
+                Text(text = "Add Task")
+            }
+        }
 
-            if (events.isEmpty()) {
-                Text(text = "No hearings or tasks on this date", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(events) { event ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.clickable(enabled = event.type == CalendarEventType.HEARING) {
+        if (events.isEmpty()) {
+            Text(
+                text = "No hearings or tasks on this date",
+                style = VakilTheme.typography.bodyLarge,
+                color = VakilTheme.colors.textTertiary
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm),
+                modifier = Modifier.fillMaxHeight()
+            ) {
+                items(events) { event ->
+                    AppCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = event.type == CalendarEventType.HEARING) {
                                 onEventClick(event)
                             }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(VakilTheme.spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(10.dp)
-                                    .background(event.type.color, shape = MaterialTheme.shapes.small)
+                                    .size(8.dp)
+                                    .background(event.type.color, shape = CircleShape)
                             )
                             Column {
-                                Text(text = event.title, style = MaterialTheme.typography.bodyMedium)
-                                Text(text = event.subtitle, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text = event.title,
+                                    style = VakilTheme.typography.bodyLarge,
+                                    color = VakilTheme.colors.textPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = event.subtitle,
+                                    style = VakilTheme.typography.labelSmall,
+                                    color = VakilTheme.colors.textSecondary
+                                )
                             }
                         }
                     }
@@ -359,7 +418,7 @@ data class CalendarEvent(
 )
 
 enum class CalendarEventType(val color: Color) {
-    HEARING(Color(0xFF2E75B6)),
-    TASK(Color(0xFFE67E22)),
-    MEETING(Color(0xFF7E57C2))
+    HEARING(Color(0xFF5B6CFF)),
+    TASK(Color(0xFFF59E0B)),
+    MEETING(Color(0xFF3B82F6))
 }

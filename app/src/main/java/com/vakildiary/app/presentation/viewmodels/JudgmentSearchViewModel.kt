@@ -32,6 +32,9 @@ class JudgmentSearchViewModel @Inject constructor(
     private val _downloadState = MutableStateFlow<JudgmentDownloadUiState>(JudgmentDownloadUiState.Success(""))
     val downloadState: StateFlow<JudgmentDownloadUiState> = _downloadState.asStateFlow()
 
+    private val _syncState = MutableStateFlow<JudgmentSyncState>(JudgmentSyncState.Idle)
+    val syncState: StateFlow<JudgmentSyncState> = _syncState.asStateFlow()
+
     val casesState: StateFlow<CasePickerUiState> = getAllCasesUseCase()
         .map { result ->
             when (result) {
@@ -48,10 +51,15 @@ class JudgmentSearchViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            _syncState.value = JudgmentSyncState.Syncing("Preparing judgments for $year...")
             _uiState.value = JudgmentSearchUiState.Loading
-            _uiState.value = when (val result = searchJudgmentsUseCase(query.trim(), year.trim())) {
-                is Result.Success -> JudgmentSearchUiState.Success(result.data)
-                is Result.Error -> JudgmentSearchUiState.Error(result.message)
+            _uiState.value = try {
+                when (val result = searchJudgmentsUseCase(query.trim(), year.trim())) {
+                    is Result.Success -> JudgmentSearchUiState.Success(result.data)
+                    is Result.Error -> JudgmentSearchUiState.Error(result.message)
+                }
+            } finally {
+                _syncState.value = JudgmentSyncState.Idle
             }
         }
     }
@@ -77,4 +85,9 @@ sealed interface JudgmentDownloadUiState {
     object Loading : JudgmentDownloadUiState
     data class Success(val message: String) : JudgmentDownloadUiState
     data class Error(val message: String) : JudgmentDownloadUiState
+}
+
+sealed interface JudgmentSyncState {
+    object Idle : JudgmentSyncState
+    data class Syncing(val message: String) : JudgmentSyncState
 }

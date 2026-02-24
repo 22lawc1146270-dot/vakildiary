@@ -11,58 +11,25 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DriveFileMove
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,6 +43,8 @@ import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.presentation.viewmodels.DocumentListViewModel
 import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
 import com.vakildiary.app.presentation.viewmodels.state.DocumentListUiState
+import com.vakildiary.app.presentation.theme.VakilTheme
+import com.vakildiary.app.presentation.components.AppCard
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -177,82 +146,104 @@ fun DocumentListScreen(
         topBar = {
             if (showTopBar) {
                 TopAppBar(
-                    title = { Text(text = if (caseId.isNullOrBlank()) "Documents" else "Case Documents") },
+                    title = { Text(text = if (caseId.isNullOrBlank()) "Documents" else "Case Documents", style = VakilTheme.typography.headlineMedium) },
                     navigationIcon = {
                         if (showBack) {
                             IconButton(onClick = onBack) {
-                                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = VakilTheme.colors.textPrimary)
                             }
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = VakilTheme.colors.bgPrimary,
+                        titleContentColor = VakilTheme.colors.textPrimary
+                    )
                 )
             }
-        }
+        },
+        containerColor = VakilTheme.colors.bgPrimary
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(VakilTheme.spacing.md),
+            verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
         ) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text(text = "Search documents") },
+                placeholder = { Text("Search by name...", style = VakilTheme.typography.bodyMedium) },
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = "Search") }
+                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = VakilTheme.colors.textTertiary) },
+                shape = CircleShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VakilTheme.colors.accentPrimary,
+                    unfocusedBorderColor = VakilTheme.colors.bgSurfaceSoft,
+                    focusedContainerColor = VakilTheme.colors.bgSecondary,
+                    unfocusedContainerColor = VakilTheme.colors.bgSecondary
+                ),
+                textStyle = VakilTheme.typography.bodyLarge
             )
 
-            if (!hasCameraPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PermissionCard(
-                    title = "Camera permission required for scanning",
-                    actionLabel = "Grant permission",
-                    onAction = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { filePicker.launch("*/*") }) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Attach")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
+            ) {
+                Button(
+                    onClick = { filePicker.launch("*/*") },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Attach", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Attach")
+                    Text(text = "Attach", style = VakilTheme.typography.labelMedium)
                 }
-                Button(onClick = {
-                    if (!hasCameraPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        return@Button
-                    }
-                    val activity = context as? Activity
-                    if (activity != null) {
-                        scannerManager.getStartScanIntent(activity)
-                            .addOnSuccessListener { intentSender ->
-                                scanLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(context, "Scanner unavailable", Toast.LENGTH_SHORT).show()
-                            }
-                    }
-                }) {
-                    Icon(imageVector = Icons.Default.FileOpen, contentDescription = "Scan")
+                Button(
+                    onClick = {
+                        if (!hasCameraPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            return@Button
+                        }
+                        val activity = context as? Activity
+                        if (activity != null) {
+                            scannerManager.getStartScanIntent(activity)
+                                .addOnSuccessListener { intentSender ->
+                                    scanLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                                }
+                                .addOnFailureListener {
+                                    Toast.makeText(context, "Scanner unavailable", Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.bgElevated),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FileOpen, contentDescription = "Scan", modifier = Modifier.size(18.dp), tint = VakilTheme.colors.accentPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Scan")
+                    Text(text = "Scan", style = VakilTheme.typography.labelMedium, color = VakilTheme.colors.textPrimary)
                 }
             }
 
             when (val state = uiState) {
-                DocumentListUiState.Loading -> CircularProgressIndicator()
-                is DocumentListUiState.Error -> Text(text = state.message, color = MaterialTheme.colorScheme.error)
+                DocumentListUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = VakilTheme.colors.accentPrimary)
+                }
+                is DocumentListUiState.Error -> Text(text = state.message, color = VakilTheme.colors.error)
                 is DocumentListUiState.Success -> {
                     val filtered = state.documents.filter {
                         it.fileName.contains(searchQuery, ignoreCase = true)
                     }
                     if (filtered.isEmpty()) {
-                        Text(text = "No documents yet")
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = "No documents found", style = VakilTheme.typography.bodyLarge, color = VakilTheme.colors.textTertiary)
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
                         ) {
                             items(filtered, key = { it.documentId }) { doc ->
                                 LaunchedEffect(doc.documentId) {
@@ -280,78 +271,68 @@ fun DocumentListScreen(
     }
 
     if (showActionsSheet && selectedDocument != null) {
-        ModalBottomSheet(onDismissRequest = { showActionsSheet = false }) {
-            ListItem(
-                headlineContent = { Text(text = "Open") },
-                leadingContent = { Icon(imageVector = Icons.Default.FileOpen, contentDescription = "Open") },
-                modifier = Modifier.clickable(onClick = {
+        ModalBottomSheet(
+            onDismissRequest = { showActionsSheet = false },
+            containerColor = VakilTheme.colors.bgSecondary
+        ) {
+            Column(modifier = Modifier.padding(bottom = VakilTheme.spacing.xl)) {
+                ActionItem("Open", Icons.Default.FileOpen) {
                     val doc = selectedDocument!!
                     pendingAction = FileAction.OPEN
                     viewModel.prepareFileForViewing(doc)
                     showActionsSheet = false
-                })
-            )
-            ListItem(
-                headlineContent = { Text(text = "Share") },
-                leadingContent = { Icon(imageVector = Icons.Default.Send, contentDescription = "Share") },
-                modifier = Modifier.clickable(onClick = {
+                }
+                ActionItem("Share", Icons.Default.Send) {
                     val doc = selectedDocument!!
                     pendingAction = FileAction.SHARE
                     viewModel.prepareFileForViewing(doc)
                     showActionsSheet = false
-                })
-            )
-            Divider()
-            ListItem(
-                headlineContent = { Text(text = "Rename") },
-                leadingContent = { Icon(imageVector = Icons.Default.Edit, contentDescription = "Rename") },
-                modifier = Modifier.clickable(onClick = {
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = VakilTheme.colors.bgSurfaceSoft)
+                ActionItem("Rename", Icons.Default.Edit) {
                     renameText = selectedDocument!!.fileName
                     showRenameDialog = true
                     showActionsSheet = false
-                })
-            )
-            ListItem(
-                headlineContent = { Text(text = "Move") },
-                leadingContent = { Icon(imageVector = Icons.Default.DriveFileMove, contentDescription = "Move") },
-                modifier = Modifier.clickable(onClick = {
+                }
+                ActionItem("Move to Case", Icons.Default.DriveFileMove) {
                     selectedMoveCaseId = selectedDocument!!.caseId
                     showMoveDialog = true
                     showActionsSheet = false
-                })
-            )
-            ListItem(
-                headlineContent = { Text(text = "Delete") },
-                leadingContent = { Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete") },
-                modifier = Modifier.clickable(onClick = {
+                }
+                ActionItem("Delete", Icons.Default.Delete, isError = true) {
                     viewModel.deleteDocument(selectedDocument!!)
                     showActionsSheet = false
-                })
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
         }
     }
 
     if (showRenameDialog && selectedDocument != null) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text(text = "Rename Document") },
+            containerColor = VakilTheme.colors.bgElevated,
+            title = { Text(text = "Rename Document", style = VakilTheme.typography.headlineMedium) },
             text = {
                 OutlinedTextField(
                     value = renameText,
                     onValueChange = { renameText = it },
-                    label = { Text(text = "File name") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("New file name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = VakilTheme.colors.accentPrimary,
+                        unfocusedBorderColor = VakilTheme.colors.bgSurfaceSoft
+                    )
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.renameDocument(selectedDocument!!, renameText.trim())
                     showRenameDialog = false
-                }) { Text(text = "Save") }
+                }) { Text(text = "Save", color = VakilTheme.colors.accentPrimary) }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text(text = "Cancel") }
+                TextButton(onClick = { showRenameDialog = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
             }
         )
     }
@@ -359,10 +340,11 @@ fun DocumentListScreen(
     if (showMoveDialog && selectedDocument != null) {
         AlertDialog(
             onDismissRequest = { showMoveDialog = false },
-            title = { Text(text = "Move to Case") },
+            containerColor = VakilTheme.colors.bgElevated,
+            title = { Text(text = "Move to Case", style = VakilTheme.typography.headlineMedium) },
             text = {
                 when (casesState) {
-                    CasePickerUiState.Loading -> CircularProgressIndicator()
+                    CasePickerUiState.Loading -> CircularProgressIndicator(color = VakilTheme.colors.accentPrimary)
                     is CasePickerUiState.Error -> Text(text = (casesState as CasePickerUiState.Error).message)
                     is CasePickerUiState.Success -> {
                         val cases = (casesState as CasePickerUiState.Success).cases
@@ -378,45 +360,23 @@ fun DocumentListScreen(
                 TextButton(onClick = {
                     viewModel.moveDocument(selectedDocument!!, selectedMoveCaseId)
                     showMoveDialog = false
-                }) { Text(text = "Move") }
+                }) { Text(text = "Move", color = VakilTheme.colors.accentPrimary) }
             },
             dismissButton = {
-                TextButton(onClick = { showMoveDialog = false }) { Text(text = "Cancel") }
+                TextButton(onClick = { showMoveDialog = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
             }
         )
     }
+}
 
-    if (showLargeFileDialog && pendingLargeFileUri != null) {
-        AlertDialog(
-            onDismissRequest = { showLargeFileDialog = false },
-            title = { Text(text = "Large file warning") },
-            text = { Text(text = "This file is large and may take longer to upload or share.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.attachDocumentFromUri(caseId, pendingLargeFileUri!!)
-                    pendingLargeFileUri = null
-                    showLargeFileDialog = false
-                }) { Text(text = "Attach") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    pendingLargeFileUri = null
-                    showLargeFileDialog = false
-                }) { Text(text = "Cancel") }
-            }
-        )
-    }
-
-    if (showVideoWarning) {
-        AlertDialog(
-            onDismissRequest = { showVideoWarning = false },
-            title = { Text(text = "Video too large") },
-            text = { Text(text = "Please compress this video before attaching.") },
-            confirmButton = {
-                TextButton(onClick = { showVideoWarning = false }) { Text(text = "OK") }
-            }
-        )
-    }
+@Composable
+private fun ActionItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isError: Boolean = false, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(text = label, style = VakilTheme.typography.bodyLarge, color = if (isError) VakilTheme.colors.error else VakilTheme.colors.textPrimary) },
+        leadingContent = { Icon(imageVector = icon, contentDescription = null, tint = if (isError) VakilTheme.colors.error else VakilTheme.colors.accentPrimary) },
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -427,7 +387,7 @@ private fun DocumentRow(
     onOpen: () -> Unit,
     onLongPress: () -> Unit
 ) {
-    androidx.compose.material3.Card(
+    AppCard(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
@@ -435,35 +395,47 @@ private fun DocumentRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(VakilTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
         ) {
-            if (document.fileType.startsWith("image")) {
-                AsyncImage(
-                    model = previewPath ?: document.thumbnailPath ?: document.filePath,
-                    contentDescription = document.fileName,
-                    modifier = Modifier.size(48.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    imageVector = Icons.Default.Description,
-                    contentDescription = document.fileName,
-                    modifier = Modifier.size(48.dp)
-                )
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(VakilTheme.colors.bgSurfaceSoft),
+                contentAlignment = Alignment.Center
+            ) {
+                if (document.fileType.startsWith("image")) {
+                    AsyncImage(
+                        model = previewPath ?: document.thumbnailPath ?: document.filePath,
+                        contentDescription = document.fileName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = VakilTheme.colors.accentPrimary
+                    )
+                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = document.fileName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = VakilTheme.typography.bodyLarge,
+                    color = VakilTheme.colors.textPrimary,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = formatMeta(document.fileSizeBytes, document.createdAt),
-                    style = MaterialTheme.typography.bodySmall
+                    style = VakilTheme.typography.labelSmall,
+                    color = VakilTheme.colors.textSecondary
                 )
             }
         }
@@ -485,21 +457,28 @@ private fun CaseDropdown(
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
-            value = selected?.let { "${it.caseName} • ${it.caseNumber}" }.orEmpty(),
+            value = selected?.let { "${it.caseName} • ${it.caseNumber}" } ?: "No Case Associated",
             onValueChange = {},
             readOnly = true,
-            label = { Text(text = "Case") },
+            label = { Text(text = "Select Target Case") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = VakilTheme.colors.accentPrimary,
+                unfocusedBorderColor = VakilTheme.colors.bgSurfaceSoft
+            ),
+            textStyle = VakilTheme.typography.bodyMedium
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(VakilTheme.colors.bgElevated)
         ) {
             DropdownMenuItem(
-                text = { Text(text = "No Case") },
+                text = { Text(text = "No Case", color = VakilTheme.colors.textPrimary) },
                 onClick = {
                     onSelectedCaseId(null)
                     expanded = false
@@ -507,7 +486,7 @@ private fun CaseDropdown(
             )
             cases.forEach { item ->
                 DropdownMenuItem(
-                    text = { Text(text = "${item.caseName} • ${item.caseNumber}") },
+                    text = { Text(text = "${item.caseName} • ${item.caseNumber}", color = VakilTheme.colors.textPrimary) },
                     onClick = {
                         onSelectedCaseId(item.caseId)
                         expanded = false
@@ -531,32 +510,14 @@ private fun formatMeta(fileSizeBytes: Long, createdAt: Long): String {
     return "$size • $date"
 }
 
-@Composable
-private fun PermissionCard(
-    title: String,
-    actionLabel: String,
-    onAction: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(text = title, style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) {
-            Text(text = actionLabel)
-        }
-    }
-}
-
-private data class FileInfo(val sizeBytes: Long, val mimeType: String)
-
 private fun getFileInfo(context: Context, uri: Uri): FileInfo? {
     val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
     val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize }
     if (size == null || size <= 0) return null
     return FileInfo(sizeBytes = size, mimeType = mimeType)
 }
+
+private data class FileInfo(val sizeBytes: Long, val mimeType: String)
 
 private const val LARGE_FILE_THRESHOLD = 20L * 1024 * 1024
 private const val VIDEO_WARN_THRESHOLD = 100L * 1024 * 1024

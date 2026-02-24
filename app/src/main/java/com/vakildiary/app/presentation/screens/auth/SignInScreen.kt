@@ -2,24 +2,20 @@ package com.vakildiary.app.presentation.screens.auth
 
 import android.app.Activity
 import android.util.Base64
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -28,6 +24,7 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.vakildiary.app.R
+import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AuthViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AuthUiState
 import kotlinx.coroutines.launch
@@ -43,48 +40,103 @@ fun SignInScreen(
     val credentialManager = remember { CredentialManager.create(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VakilTheme.colors.bgPrimary
     ) {
-        Text(text = "Welcome to VakilDiary", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = "Sign in with Google to continue", style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(24.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(VakilTheme.spacing.lg),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "VakilDiary", 
+                style = VakilTheme.typography.headlineLarge,
+                color = VakilTheme.colors.accentPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.xs))
+            Text(
+                text = "LITIGATION CONTROL CENTER", 
+                style = VakilTheme.typography.labelSmall,
+                color = VakilTheme.colors.textTertiary,
+                letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+            )
+            
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.xl))
+            
+            Text(
+                text = "Professional management for your legal practice.", 
+                style = VakilTheme.typography.bodyLarge,
+                color = VakilTheme.colors.textSecondary,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.xl))
 
-        if (uiState is AuthUiState.Error) {
-            Text(text = uiState.message, color = MaterialTheme.colorScheme.error)
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
-        Button(
-            onClick = {
-                if (activity == null) {
-                    viewModel.onSignInError("Unable to start sign-in")
-                    return@Button
-                }
-                coroutineScope.launch {
-                    viewModel.onLoading()
-                    signInWithGoogle(
-                        activity = activity,
-                        credentialManager = credentialManager,
-                        onSuccess = viewModel::onSignInSuccess,
-                        onError = viewModel::onSignInError
+            if (uiState is AuthUiState.Error) {
+                Surface(
+                    color = VakilTheme.colors.error.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = uiState.message, 
+                        color = VakilTheme.colors.error,
+                        modifier = Modifier.padding(VakilTheme.spacing.sm),
+                        style = VakilTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center
                     )
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = if (uiState is AuthUiState.Loading) "Signing in..." else "Sign in with Google")
-        }
+                Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+            }
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    if (activity == null) {
+                        viewModel.onSignInError("Unable to start sign-in")
+                        return@Button
+                    }
+                    coroutineScope.launch {
+                        viewModel.onLoading()
+                        signInWithGoogle(
+                            activity = activity,
+                            credentialManager = credentialManager,
+                            onSuccess = viewModel::onSignInSuccess,
+                            onError = viewModel::onSignInError
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VakilTheme.colors.accentPrimary,
+                    disabledContainerColor = VakilTheme.colors.bgSurfaceSoft
+                ),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(VakilTheme.spacing.md),
+                enabled = uiState !is AuthUiState.Loading
+            ) {
+                if (uiState is AuthUiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = VakilTheme.colors.onAccent, strokeWidth = 2.dp)
+                } else {
+                    Text(text = "Sign in with Google", style = VakilTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+            }
 
-        TextButton(onClick = { viewModel.skipSignIn() }) {
-            Text(text = "Not now")
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+
+            TextButton(
+                onClick = { viewModel.skipSignIn() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Continue as Guest", 
+                    style = VakilTheme.typography.labelMedium,
+                    color = VakilTheme.colors.textSecondary
+                )
+            }
         }
     }
 }

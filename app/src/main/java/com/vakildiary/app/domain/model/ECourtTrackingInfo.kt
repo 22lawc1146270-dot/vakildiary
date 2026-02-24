@@ -4,6 +4,7 @@ data class ECourtTrackingInfo(
     val stateCode: String,
     val districtCode: String,
     val courtCode: String,
+    val establishmentCode: String?,
     val caseTypeCode: String,
     val caseNumber: String,
     val year: String,

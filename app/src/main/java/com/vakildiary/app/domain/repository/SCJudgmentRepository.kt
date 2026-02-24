@@ -19,6 +19,8 @@ data class JudgmentSearchResult(
     val title: String,
     val citation: String?,
     val bench: String?,
+    val coram: String?,
+    val caseNumber: String?,
     val dateOfJudgment: Long?
 )
 

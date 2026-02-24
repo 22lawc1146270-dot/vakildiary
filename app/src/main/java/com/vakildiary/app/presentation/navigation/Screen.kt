@@ -12,7 +12,8 @@ sealed class Screen(val route: String) {
             "add_case?caseName={caseName}&caseNumber={caseNumber}&courtName={courtName}" +
                 "&clientName={clientName}&courtType={courtType}&caseType={caseType}&caseStage={caseStage}" +
                 "&ecourtStateCode={ecourtStateCode}&ecourtDistrictCode={ecourtDistrictCode}" +
-                "&ecourtCourtCode={ecourtCourtCode}&ecourtCaseTypeCode={ecourtCaseTypeCode}" +
+                "&ecourtCourtCode={ecourtCourtCode}&ecourtEstablishmentCode={ecourtEstablishmentCode}" +
+                "&ecourtCaseTypeCode={ecourtCaseTypeCode}" +
                 "&ecourtYear={ecourtYear}"
         ) {
         const val ARG_CASE_NAME = "caseName"
@@ -25,6 +26,7 @@ sealed class Screen(val route: String) {
         const val ARG_ECOURT_STATE_CODE = "ecourtStateCode"
         const val ARG_ECOURT_DISTRICT_CODE = "ecourtDistrictCode"
         const val ARG_ECOURT_COURT_CODE = "ecourtCourtCode"
+        const val ARG_ECOURT_ESTABLISHMENT_CODE = "ecourtEstablishmentCode"
         const val ARG_ECOURT_CASE_TYPE_CODE = "ecourtCaseTypeCode"
         const val ARG_ECOURT_YEAR = "ecourtYear"
 
@@ -39,6 +41,7 @@ sealed class Screen(val route: String) {
             ecourtStateCode: String? = null,
             ecourtDistrictCode: String? = null,
             ecourtCourtCode: String? = null,
+            ecourtEstablishmentCode: String? = null,
             ecourtCaseTypeCode: String? = null,
             ecourtYear: String? = null
         ): String {
@@ -47,6 +50,7 @@ sealed class Screen(val route: String) {
                 "&courtType=${encode(courtType?.name)}&caseType=${encode(caseType?.name)}" +
                 "&caseStage=${encode(caseStage?.name)}&ecourtStateCode=${encode(ecourtStateCode)}" +
                 "&ecourtDistrictCode=${encode(ecourtDistrictCode)}&ecourtCourtCode=${encode(ecourtCourtCode)}" +
+                "&ecourtEstablishmentCode=${encode(ecourtEstablishmentCode)}" +
                 "&ecourtCaseTypeCode=${encode(ecourtCaseTypeCode)}&ecourtYear=${encode(ecourtYear)}"
         }
     }

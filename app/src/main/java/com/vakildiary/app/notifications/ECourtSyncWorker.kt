@@ -26,7 +26,19 @@ class ECourtSyncWorker(
         if (trackedCases.isEmpty()) return Result.success()
 
         val captcha = trackingStore.getLastCaptcha().orEmpty()
-        val csrfMagic = trackingStore.getLastCsrfMagic()
+        var token = trackingStore.getLastAppToken().orEmpty()
+        if (token.isBlank()) {
+            when (val session = repository.fetchSession()) {
+                is AppResult.Success -> {
+                    token = session.data.token
+                    trackingStore.saveLastAppToken(token)
+                }
+                is AppResult.Error -> {
+                    notifyStatus(null, "eCourt Sync", "eCourt session unavailable. Open eCourt search to sync.")
+                    return Result.success()
+                }
+            }
+        }
         if (captcha.isBlank()) {
             notifyStatus(null, "eCourt Sync", "Captcha required. Open eCourt search to sync.")
             return Result.success()
@@ -36,19 +48,22 @@ class ECourtSyncWorker(
         trackedCases.forEach { caseEntity ->
             val tracking = trackingStore.get(caseEntity.caseId) ?: return@forEach
             val response = repository.searchCaseByNumber(
+                token = token,
                 stateCode = tracking.stateCode,
                 districtCode = tracking.districtCode,
-                courtCode = tracking.courtCode,
+                courtComplexCode = tracking.courtCode,
+                establishmentCode = tracking.establishmentCode,
                 caseType = tracking.caseTypeCode,
                 caseNumber = tracking.caseNumber,
                 year = tracking.year,
-                captcha = captcha,
-                csrfMagic = csrfMagic
+                captcha = captcha
             )
             when (response) {
                 is AppResult.Error -> return@forEach
                 is AppResult.Success -> {
-                    if (isCaptchaInvalid(response.data)) {
+                    token = response.data.token
+                    trackingStore.saveLastAppToken(token)
+                    if (isCaptchaInvalid(response.data.caseHtml)) {
                         captchaInvalid = true
                         return@forEach
                     }
@@ -58,13 +73,13 @@ class ECourtSyncWorker(
                         stateCode = tracking.stateCode,
                         districtCode = tracking.districtCode,
                         courtCode = tracking.courtCode,
+                        establishmentCode = tracking.establishmentCode.orEmpty(),
                         caseType = tracking.caseTypeCode,
                         caseNumber = tracking.caseNumber,
                         year = tracking.year,
-                        captcha = captcha,
-                        csrfMagic = csrfMagic.orEmpty()
+                        captcha = captcha
                     )
-                    val parsed = ECourtParser.parse(response.data, form)
+                    val parsed = ECourtParser.parse(response.data.caseHtml, form)
                     val item = parsed.firstOrNull { it.caseNumber == tracking.caseNumber }
                         ?: parsed.firstOrNull()
                         ?: return@forEach

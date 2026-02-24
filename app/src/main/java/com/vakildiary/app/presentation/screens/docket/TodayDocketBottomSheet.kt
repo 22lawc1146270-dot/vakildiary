@@ -2,40 +2,28 @@ package com.vakildiary.app.presentation.screens.docket
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetState
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vakildiary.app.presentation.viewmodels.DocketItem
 import com.vakildiary.app.presentation.viewmodels.DocketType
 import com.vakildiary.app.presentation.viewmodels.DocketUiState
+import com.vakildiary.app.presentation.theme.VakilTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import androidx.compose.material.icons.Icons
@@ -54,46 +42,44 @@ fun TodayDocketBottomSheet(
     onToggleTask: (taskId: String, isCompleted: Boolean) -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 ) {
-    val handleColor = MaterialTheme.colorScheme.onSurfaceVariant
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = VakilTheme.colors.bgSecondary,
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp, bottom = 4.dp)
+                    .padding(top = 12.dp)
                     .width(40.dp)
                     .height(4.dp)
-                    .drawBehind {
-                        drawRect(
-                            color = handleColor,
-                            size = size
-                        )
-                    }
+                    .clip(CircleShape)
+                    .background(VakilTheme.colors.bgSurfaceSoft)
             )
         }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(VakilTheme.spacing.md)
         ) {
             Header(uiState = uiState, onDismiss = onDismiss)
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
 
             when (uiState) {
                 DocketUiState.Loading -> {
-                    Text(text = "Loading...", style = MaterialTheme.typography.bodyMedium)
+                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = VakilTheme.colors.accentPrimary)
+                    }
                 }
                 is DocketUiState.Error -> {
-                    Text(text = uiState.message, color = MaterialTheme.colorScheme.error)
+                    Text(text = uiState.message, color = VakilTheme.colors.error, modifier = Modifier.padding(VakilTheme.spacing.md))
                 }
                 is DocketUiState.Success -> {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
                     ) {
                         item {
-                            SectionHeader(title = "HEARINGS (${uiState.hearings.size})")
+                            SectionHeader(title = "HEARINGS", count = uiState.hearings.size)
                         }
                         items(uiState.hearings) { item ->
                             DocketRow(
@@ -109,8 +95,8 @@ fun TodayDocketBottomSheet(
                             )
                         }
                         item {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            SectionHeader(title = "TASKS (${uiState.tasks.size})")
+                            Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+                            SectionHeader(title = "TASKS", count = uiState.tasks.size)
                         }
                         items(uiState.tasks) { item ->
                             DocketRow(
@@ -119,7 +105,7 @@ fun TodayDocketBottomSheet(
                                 onToggle = { checked -> onToggleTask(item.id, checked) }
                             )
                         }
-                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                        item { Spacer(modifier = Modifier.height(VakilTheme.spacing.xl)) }
                     }
                 }
             }
@@ -130,42 +116,64 @@ fun TodayDocketBottomSheet(
 @Composable
 private fun Header(uiState: DocketUiState, onDismiss: () -> Unit) {
     val dateText = remember {
-        val formatter = DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy")
+        val formatter = DateTimeFormatter.ofPattern("EEEE, d MMMM")
         LocalDate.now().format(formatter)
     }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = "Today's Docket", style = MaterialTheme.typography.titleLarge)
-            Text(text = dateText, style = MaterialTheme.typography.bodyMedium)
+            Text(text = "Today's Docket", style = VakilTheme.typography.headlineMedium, color = VakilTheme.colors.textPrimary)
+            Text(text = dateText, style = VakilTheme.typography.bodyMedium, color = VakilTheme.colors.textSecondary)
         }
-        AssistChip(
-            onClick = {},
-            label = {
-                val progressText = when (uiState) {
-                    is DocketUiState.Success -> "${uiState.completedCount} of ${uiState.totalCount} done"
-                    else -> "0 of 0 done"
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (uiState is DocketUiState.Success) {
+                Surface(
+                    color = VakilTheme.colors.accentSoft,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "${uiState.completedCount}/${uiState.totalCount} DONE",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = VakilTheme.typography.labelSmall,
+                        color = VakilTheme.colors.accentPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(text = progressText)
             }
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        IconButton(onClick = onDismiss) {
-            Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+            Spacer(modifier = Modifier.width(VakilTheme.spacing.sm))
+            IconButton(
+                onClick = onDismiss,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = VakilTheme.colors.bgElevated)
+            ) {
+                Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = VakilTheme.colors.textPrimary, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary
-    )
+private fun SectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = VakilTheme.spacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = title,
+            style = VakilTheme.typography.labelSmall,
+            color = VakilTheme.colors.accentPrimary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "$count Items",
+            style = VakilTheme.typography.labelSmall,
+            color = VakilTheme.colors.textTertiary
+        )
+    }
 }
 
 @Composable
@@ -174,94 +182,87 @@ private fun DocketRow(
     advocateName: String,
     onToggle: (Boolean) -> Unit
 ) {
-    val strikeProgress by animateFloatAsState(targetValue = if (item.isCompleted) 1f else 0f)
+    val strikeProgress by animateFloatAsState(targetValue = if (item.isCompleted) 1f else 0f, label = "Strike")
     val textColor = if (item.isCompleted) {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        VakilTheme.colors.textTertiary
     } else {
-        MaterialTheme.colorScheme.onSurface
+        VakilTheme.colors.textPrimary
     }
     val subtitleColor = if (item.isOverdue && !item.isCompleted) {
-        MaterialTheme.colorScheme.error
+        VakilTheme.colors.error
     } else {
-        textColor
+        VakilTheme.colors.textSecondary
     }
     val context = LocalContext.current
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = if (item.isCompleted) Color.Transparent else VakilTheme.colors.bgElevated,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
     ) {
-        Checkbox(
-            checked = item.isCompleted,
-            onCheckedChange = onToggle
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(VakilTheme.spacing.sm),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = textColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.drawStrikeThrough(strikeProgress, textColor)
+            Checkbox(
+                checked = item.isCompleted,
+                onCheckedChange = onToggle,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = VakilTheme.colors.accentPrimary,
+                    uncheckedColor = VakilTheme.colors.textTertiary
+                )
             )
-            Text(
-                text = item.subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = subtitleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (item.isOverdue && !item.isCompleted) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = VakilTheme.spacing.xs)
+            ) {
                 Text(
-                    text = "Overdue",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
+                    text = item.title,
+                    style = VakilTheme.typography.bodyLarge,
+                    color = textColor,
+                    fontWeight = if (item.isCompleted) FontWeight.Normal else FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.drawStrikeThrough(strikeProgress, textColor)
+                )
+                Text(
+                    text = item.subtitle,
+                    style = VakilTheme.typography.labelSmall,
+                    color = subtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-        if (item.type == DocketType.HEARING && item.nextHearingDate != null) {
-            IconButton(onClick = {
-                ShareUtils.shareHearingDateText(
-                    context = context,
-                    clientName = item.clientName ?: "Client",
-                    caseName = item.title,
-                    date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                    court = item.courtName ?: "",
-                    advocateName = advocateName
-                )
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+            
+            if (item.type == DocketType.HEARING && item.nextHearingDate != null) {
+                IconButton(onClick = {
+                    ShareUtils.shareHearingDateText(
+                        context = context,
+                        clientName = item.clientName ?: "Client",
+                        caseName = item.title,
+                        date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                        court = item.courtName ?: "",
+                        advocateName = advocateName
+                    )
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = VakilTheme.colors.accentPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
+            
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (item.type == DocketType.HEARING) VakilTheme.colors.accentPrimary else VakilTheme.colors.warning)
+            )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        DocketChip(type = item.type)
     }
-}
-
-@Composable
-private fun DocketChip(type: DocketType) {
-    val (label, color) = when (type) {
-        DocketType.HEARING -> "Hearing" to Color(0xFF1565C0)
-        DocketType.TASK -> "Task" to Color(0xFFE67E22)
-    }
-
-    AssistChip(
-        onClick = {},
-        label = { Text(text = label) },
-        leadingIcon = {
-            Canvas(modifier = Modifier.size(8.dp)) {
-                drawCircle(color = color)
-            }
-        }
-    )
 }
 
 private fun Modifier.drawStrikeThrough(progress: Float, color: Color): Modifier {
@@ -269,10 +270,10 @@ private fun Modifier.drawStrikeThrough(progress: Float, color: Color): Modifier 
     return drawBehind {
         val y = size.height / 2f
         drawLine(
-            color = color,
+            color = color.copy(alpha = 0.6f),
             start = androidx.compose.ui.geometry.Offset(0f, y),
             end = androidx.compose.ui.geometry.Offset(size.width * progress, y),
-            strokeWidth = 2.dp.toPx()
+            strokeWidth = 1.5.dp.toPx()
         )
     }
 }

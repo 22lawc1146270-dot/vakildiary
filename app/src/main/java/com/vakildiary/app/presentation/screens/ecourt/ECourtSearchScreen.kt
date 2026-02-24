@@ -43,16 +43,21 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vakildiary.app.domain.model.CourtType
+import com.vakildiary.app.domain.model.ECourtComplexOption
+import com.vakildiary.app.domain.model.ECourtOption
 import com.vakildiary.app.R
 import com.vakildiary.app.presentation.model.ECourtCaseItem
 import com.vakildiary.app.presentation.model.ECourtSearchForm
+import com.vakildiary.app.presentation.viewmodels.ECourtLookupUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchViewModel
 import com.vakildiary.app.presentation.util.rememberIsOnline
+import java.time.Year
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,10 +68,20 @@ fun ECourtSearchScreen(
 ) {
     var form by remember { mutableStateOf(ECourtSearchForm()) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val recentEntries by viewModel.recentEntries.collectAsStateWithLifecycle()
+    val lookupState by viewModel.lookupState.collectAsStateWithLifecycle()
     val captchaUrl by viewModel.captchaUrl.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
     var showResultsSheet by remember { mutableStateOf(false) }
+    val years = remember {
+        val currentYear = Year.now().value
+        (currentYear downTo currentYear - 30).map { it.toString() }
+    }
+
+    LaunchedEffect(years) {
+        if (form.year.isBlank()) {
+            form = form.copy(year = years.first())
+        }
+    }
 
     LaunchedEffect(uiState) {
         showResultsSheet = when (uiState) {
@@ -74,6 +89,8 @@ fun ECourtSearchScreen(
             else -> false
         }
     }
+
+    val lookupData = (lookupState as? ECourtLookupUiState.Success)?.data
 
     Scaffold(
         topBar = {
@@ -95,7 +112,16 @@ fun ECourtSearchScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!isOnline) {
-                OfflineBanner(onRetry = { if (isOnline) viewModel.search(form) })
+                OfflineBanner(onRetry = { if (isOnline) viewModel.loadSession() })
+            }
+
+            when (lookupState) {
+                ECourtLookupUiState.Loading -> CircularProgressIndicator()
+                is ECourtLookupUiState.Error -> Text(
+                    text = (lookupState as ECourtLookupUiState.Error).message,
+                    color = MaterialTheme.colorScheme.error
+                )
+                else -> Unit
             }
 
             EnumDropdownField(
@@ -103,57 +129,107 @@ fun ECourtSearchScreen(
                 options = CourtType.values().toList(),
                 selected = form.courtType,
                 onSelected = { form = form.copy(courtType = it) }
-            ) { it.name }
+            ) { it.name.replaceFirstChar(Char::uppercase) }
 
-            OutlinedTextField(
-                value = form.courtName,
-                onValueChange = { form = form.copy(courtName = it) },
-                label = { Text(text = stringResource(id = R.string.ecourt_court_name)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            RecentDropdownField(
+            OptionDropdownField(
                 label = stringResource(id = R.string.ecourt_state_code),
-                value = form.stateCode,
-                options = recentEntries.stateCodes,
-                onValueChange = { form = form.copy(stateCode = it) }
-            )
+                options = lookupData?.states.orEmpty(),
+                selected = lookupData?.states?.firstOrNull { it.code == form.stateCode },
+                enabled = lookupData?.states?.isNotEmpty() == true
+            ) { option ->
+                form = form.copy(
+                    stateCode = option.code,
+                    districtCode = "",
+                    courtCode = "",
+                    establishmentCode = "",
+                    caseType = "",
+                    courtName = ""
+                )
+                viewModel.loadDistricts(option.code)
+            }
 
-            RecentDropdownField(
+            OptionDropdownField(
                 label = stringResource(id = R.string.ecourt_district_code),
-                value = form.districtCode,
-                options = recentEntries.districtCodes,
-                onValueChange = { form = form.copy(districtCode = it) }
-            )
+                options = lookupData?.districts.orEmpty(),
+                selected = lookupData?.districts?.firstOrNull { it.code == form.districtCode },
+                enabled = form.stateCode.isNotBlank() && lookupData?.districts?.isNotEmpty() == true
+            ) { option ->
+                form = form.copy(
+                    districtCode = option.code,
+                    courtCode = "",
+                    establishmentCode = "",
+                    caseType = "",
+                    courtName = ""
+                )
+                viewModel.loadCourtComplexes(form.stateCode, option.code)
+            }
 
-            RecentDropdownField(
-                label = stringResource(id = R.string.ecourt_court_code),
-                value = form.courtCode,
-                options = recentEntries.courtCodes,
-                onValueChange = { form = form.copy(courtCode = it) }
-            )
+            ComplexDropdownField(
+                label = stringResource(id = R.string.ecourt_court_name),
+                options = lookupData?.courts.orEmpty(),
+                selected = lookupData?.courts?.firstOrNull { it.complexCode == form.courtCode },
+                enabled = form.districtCode.isNotBlank() && lookupData?.courts?.isNotEmpty() == true
+            ) { option ->
+                form = form.copy(
+                    courtCode = option.complexCode,
+                    courtName = option.label,
+                    establishmentCode = "",
+                    caseType = ""
+                )
+                if (option.requiresEstablishment) {
+                    viewModel.loadEstablishments(form.stateCode, form.districtCode, option.complexCode)
+                } else {
+                    viewModel.loadCaseTypes(form.stateCode, form.districtCode, option.complexCode, null)
+                }
+            }
 
-            RecentDropdownField(
+            if (lookupData?.requiresEstablishment == true) {
+                OptionDropdownField(
+                    label = stringResource(id = R.string.ecourt_court_code),
+                    options = lookupData.establishments,
+                    selected = lookupData.establishments.firstOrNull { it.code == form.establishmentCode },
+                    enabled = lookupData.establishments.isNotEmpty()
+                ) { option ->
+                    form = form.copy(
+                        establishmentCode = option.code,
+                        caseType = ""
+                    )
+                    viewModel.loadCaseTypes(form.stateCode, form.districtCode, form.courtCode, option.code)
+                }
+            } else if (form.courtCode.isNotBlank()) {
+                OutlinedTextField(
+                    value = form.courtCode,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(text = stringResource(id = R.string.ecourt_court_code)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            OptionDropdownField(
                 label = stringResource(id = R.string.ecourt_case_type_code),
-                value = form.caseType,
-                options = recentEntries.caseTypeCodes,
-                onValueChange = { form = form.copy(caseType = it) }
-            )
+                options = lookupData?.caseTypes.orEmpty(),
+                selected = lookupData?.caseTypes?.firstOrNull { it.code == form.caseType },
+                enabled = lookupData?.caseTypes?.isNotEmpty() == true
+            ) { option ->
+                form = form.copy(caseType = option.code)
+            }
+
+            YearDropdownField(
+                label = stringResource(id = R.string.ecourt_year),
+                options = years,
+                selected = form.year,
+                enabled = true
+            ) { year ->
+                form = form.copy(year = year)
+            }
 
             OutlinedTextField(
                 value = form.caseNumber,
                 onValueChange = { form = form.copy(caseNumber = it) },
                 label = { Text(text = stringResource(id = R.string.ecourt_case_number)) },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            OutlinedTextField(
-                value = form.year,
-                onValueChange = { form = form.copy(year = it) },
-                label = { Text(text = stringResource(id = R.string.ecourt_year)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done)
             )
 
             CaptchaField(
@@ -161,13 +237,6 @@ fun ECourtSearchScreen(
                 captchaValue = form.captcha,
                 onCaptchaChanged = { form = form.copy(captcha = it) },
                 onRefresh = viewModel::refreshCaptcha
-            )
-
-            OutlinedTextField(
-                value = form.csrfMagic,
-                onValueChange = { form = form.copy(csrfMagic = it) },
-                label = { Text(text = stringResource(id = R.string.ecourt_csrf_magic)) },
-                modifier = Modifier.fillMaxWidth()
             )
 
             Button(
@@ -261,22 +330,26 @@ private fun <T> EnumDropdownField(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecentDropdownField(
+private fun OptionDropdownField(
     label: String,
-    value: String,
-    options: List<String>,
-    onValueChange: (String) -> Unit
+    options: List<ECourtOption>,
+    selected: ECourtOption?,
+    enabled: Boolean,
+    onSelected: (ECourtOption) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = selected?.let { "${it.label} (${it.code})" }.orEmpty()
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { if (enabled) expanded = !expanded },
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
             label = { Text(text = label) },
+            enabled = enabled,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
@@ -286,21 +359,101 @@ private fun RecentDropdownField(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            if (options.isEmpty()) {
+            options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(text = stringResource(id = R.string.ecourt_recent_empty)) },
-                    onClick = { expanded = false }
+                    text = { Text(text = "${option.label} (${option.code})") },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
                 )
-            } else {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(text = option) },
-                        onClick = {
-                            onValueChange(option)
-                            expanded = false
-                        }
-                    )
-                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ComplexDropdownField(
+    label: String,
+    options: List<ECourtComplexOption>,
+    selected: ECourtComplexOption?,
+    enabled: Boolean,
+    onSelected: (ECourtComplexOption) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = selected?.let { "${it.label} (${it.complexCode})" }.orEmpty()
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(text = label) },
+            enabled = enabled,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = "${option.label} (${option.complexCode})") },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun YearDropdownField(
+    label: String,
+    options: List<String>,
+    selected: String,
+    enabled: Boolean,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(text = label) },
+            enabled = enabled,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = option) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
             }
         }
     }
@@ -358,7 +511,11 @@ private fun CaptchaField(
             value = captchaValue,
             onValueChange = onCaptchaChanged,
             label = { Text(text = stringResource(id = R.string.ecourt_captcha)) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Done
+            )
         )
     }
 }

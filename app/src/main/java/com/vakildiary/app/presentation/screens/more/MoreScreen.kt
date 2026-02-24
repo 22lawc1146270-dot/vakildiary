@@ -1,30 +1,27 @@
 package com.vakildiary.app.presentation.screens.more
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,10 +33,13 @@ import com.vakildiary.app.presentation.viewmodels.DeltaSyncViewModel
 import com.vakildiary.app.presentation.viewmodels.state.BackupUiState
 import com.vakildiary.app.presentation.theme.ThemeMode
 import com.vakildiary.app.presentation.theme.LanguageMode
+import com.vakildiary.app.presentation.theme.VakilTheme
+import com.vakildiary.app.presentation.components.AppCard
 import androidx.compose.ui.res.stringResource
 import com.vakildiary.app.R
 import androidx.core.content.ContextCompat
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
     authViewModel: AuthViewModel = hiltViewModel(),
@@ -78,150 +78,184 @@ fun MoreScreen(
         notificationsGranted = granted
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text = stringResource(id = R.string.more), style = MaterialTheme.typography.titleLarge)
-        Text(text = "Signed in as: ${userEmail ?: "Guest"}")
-        Button(
-            onClick = { authViewModel.signOut() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = stringResource(id = R.string.sign_out))
-        }
-        if (userEmail.isNullOrBlank()) {
-            PermissionCard(
-                title = "Google Drive backup needs sign-in",
-                actionLabel = "Grant permission",
-                onAction = { authViewModel.resumeSignIn() }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = stringResource(id = R.string.more), style = VakilTheme.typography.headlineMedium) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = VakilTheme.colors.bgPrimary,
+                    titleContentColor = VakilTheme.colors.textPrimary
+                )
             )
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
-            PermissionCard(
-                title = "Notifications are off",
-                actionLabel = "Grant permission",
-                onAction = { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
-            )
-        }
-
-        Text(text = stringResource(id = R.string.settings), style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = advocateName ?: "",
-            onValueChange = { settingsViewModel.setAdvocateName(it) },
-            label = { Text(text = "Advocate Name (for sharing)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text(text = "Integrations", style = MaterialTheme.typography.titleMedium)
-        Button(
-            onClick = onOpenECourt,
-            modifier = Modifier.fillMaxWidth()
+        },
+        containerColor = VakilTheme.colors.bgPrimary
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(VakilTheme.spacing.md),
+            verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.lg)
         ) {
-            Text(text = "eCourt Search")
-        }
-        Button(
-            onClick = onOpenJudgments,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = "Judgment Search")
-        }
-
-        Button(
-            onClick = onOpenBackupStatus,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = stringResource(id = R.string.backup_status))
-        }
-
-        Button(
-            onClick = onOpenUpcomingMeetings,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = "Upcoming Meetings")
-        }
-
-        Button(
-            onClick = { backupViewModel.backupNow() },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = backupState !is BackupUiState.Loading
-        ) {
-            Text(text = if (backupState is BackupUiState.Loading) "Backing up..." else stringResource(id = R.string.backup_now))
-        }
-
-        Button(
-            onClick = { deltaSyncViewModel.syncDocuments() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = "Delta Sync Now")
-        }
-
-        LaunchedEffect(deltaSyncCount) {
-            if (deltaSyncCount > 0) {
-                android.widget.Toast.makeText(
-                    context,
-                    "Delta sync complete: $deltaSyncCount files",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
+            // User Account Section
+            AppCard {
+                Column(modifier = Modifier.padding(VakilTheme.spacing.md)) {
+                    Text(
+                        text = "ACCOUNT",
+                        style = VakilTheme.typography.labelSmall,
+                        color = VakilTheme.colors.accentPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(VakilTheme.spacing.sm))
+                    Text(
+                        text = userEmail ?: "Guest User",
+                        style = VakilTheme.typography.bodyLarge,
+                        color = VakilTheme.colors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+                    Button(
+                        onClick = { authViewModel.signOut() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.bgSurfaceSoft),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.sign_out),
+                            style = VakilTheme.typography.labelMedium,
+                            color = VakilTheme.colors.error
+                        )
+                    }
+                }
             }
+
+            if (userEmail.isNullOrBlank()) {
+                PermissionCard(
+                    title = "Cloud backup disabled",
+                    description = "Sign in to enable Google Drive sync and protect your data.",
+                    actionLabel = "Sign In Now",
+                    onAction = { authViewModel.resumeSignIn() }
+                )
+            }
+
+            // Integrations & Tools
+            SectionHeader("INTEGRATIONS")
+            Column(verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)) {
+                MoreMenuItem("eCourt Search", "Find cases on eCourts platform", onOpenECourt)
+                MoreMenuItem("Judgment Search", "Access Supreme Court judgments", onOpenJudgments)
+                MoreMenuItem("Cloud Sync", "Manage your backups and storage", onOpenBackupStatus)
+                MoreMenuItem("Upcoming Meetings", "View your scheduled appointments", onOpenUpcomingMeetings)
+            }
+
+            // App Settings
+            SectionHeader("PREFERENCES")
+            AppCard {
+                Column(modifier = Modifier.padding(VakilTheme.spacing.md)) {
+                    OutlinedTextField(
+                        value = advocateName ?: "",
+                        onValueChange = { settingsViewModel.setAdvocateName(it) },
+                        label = { Text("Advocate Name (for reports)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = VakilTheme.colors.accentPrimary,
+                            unfocusedBorderColor = VakilTheme.colors.bgSurfaceSoft
+                        )
+                    )
+                    
+                    Spacer(modifier = Modifier.height(VakilTheme.spacing.lg))
+                    
+                    Text(text = "Appearance", style = VakilTheme.typography.labelMedium, color = VakilTheme.colors.textSecondary)
+                    ThemeOptionGroup(
+                        options = listOf(
+                            ThemeMode.SYSTEM to "System",
+                            ThemeMode.LIGHT_IVORY to "Ivory",
+                            ThemeMode.LIGHT_NORDIC to "Nordic",
+                            ThemeMode.DARK_SLATE to "Slate",
+                            ThemeMode.DARK_ONYX to "Onyx"
+                        ),
+                        selected = themeMode,
+                        onSelect = { settingsViewModel.setThemeMode(it) }
+                    )
+
+                    Spacer(modifier = Modifier.height(VakilTheme.spacing.lg))
+
+                    Text(text = "Language", style = VakilTheme.typography.labelMedium, color = VakilTheme.colors.textSecondary)
+                    LanguageOptionGroup(
+                        options = listOf(
+                            LanguageMode.SYSTEM to stringResource(id = R.string.system_default),
+                            LanguageMode.ENGLISH to stringResource(id = R.string.english),
+                            LanguageMode.HINDI to stringResource(id = R.string.hindi)
+                        ),
+                        selected = languageMode,
+                        onSelect = { settingsViewModel.setLanguageMode(it) }
+                    )
+                }
+            }
+
+            // Security
+            SectionHeader("SECURITY")
+            AppCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(VakilTheme.spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(id = R.string.app_lock_biometric),
+                            style = VakilTheme.typography.bodyLarge,
+                            color = VakilTheme.colors.textPrimary
+                        )
+                        Text(
+                            text = "Protect app with fingerprint",
+                            style = VakilTheme.typography.labelSmall,
+                            color = VakilTheme.colors.textSecondary
+                        )
+                    }
+                    Switch(
+                        checked = isAppLockEnabled,
+                        onCheckedChange = { appLockViewModel.setAppLockEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = VakilTheme.colors.onAccent,
+                            checkedTrackColor = VakilTheme.colors.accentPrimary
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.xl))
         }
+    }
+}
 
-        Text(text = stringResource(id = R.string.theme), style = MaterialTheme.typography.titleMedium)
-        ThemeOptionRow(
-            label = stringResource(id = R.string.system_default),
-            selected = themeMode == ThemeMode.SYSTEM,
-            onSelect = { settingsViewModel.setThemeMode(ThemeMode.SYSTEM) }
-        )
-        ThemeOptionRow(
-            label = stringResource(id = R.string.light),
-            selected = themeMode == ThemeMode.LIGHT,
-            onSelect = { settingsViewModel.setThemeMode(ThemeMode.LIGHT) }
-        )
-        ThemeOptionRow(
-            label = stringResource(id = R.string.dark),
-            selected = themeMode == ThemeMode.DARK,
-            onSelect = { settingsViewModel.setThemeMode(ThemeMode.DARK) }
-        )
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = VakilTheme.typography.labelSmall,
+        color = VakilTheme.colors.textTertiary,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(bottom = VakilTheme.spacing.xs)
+    )
+}
 
-        Text(text = stringResource(id = R.string.language), style = MaterialTheme.typography.titleMedium)
-        ThemeOptionRow(
-            label = stringResource(id = R.string.system_default),
-            selected = languageMode == LanguageMode.SYSTEM,
-            onSelect = { settingsViewModel.setLanguageMode(LanguageMode.SYSTEM) }
-        )
-        ThemeOptionRow(
-            label = stringResource(id = R.string.english),
-            selected = languageMode == LanguageMode.ENGLISH,
-            onSelect = { settingsViewModel.setLanguageMode(LanguageMode.ENGLISH) }
-        )
-        ThemeOptionRow(
-            label = stringResource(id = R.string.hindi),
-            selected = languageMode == LanguageMode.HINDI,
-            onSelect = { settingsViewModel.setLanguageMode(LanguageMode.HINDI) }
-        )
-
-        Text(text = stringResource(id = R.string.security), style = MaterialTheme.typography.titleMedium)
+@Composable
+private fun MoreMenuItem(title: String, subtitle: String, onClick: () -> Unit) {
+    AppCard(onClick = onClick) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
+                .padding(VakilTheme.spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = stringResource(id = R.string.app_lock_biometric))
-            Switch(
-                checked = isAppLockEnabled,
-                onCheckedChange = { appLockViewModel.setAppLockEnabled(it) }
-            )
-        }
-
-        when (backupState) {
-            is BackupUiState.Success -> Text(text = "Backup complete")
-            is BackupUiState.Error -> Text(
-                text = (backupState as BackupUiState.Error).message,
-                color = MaterialTheme.colorScheme.error
-            )
-            else -> Unit
+            Column {
+                Text(text = title, style = VakilTheme.typography.bodyLarge, color = VakilTheme.colors.textPrimary, fontWeight = FontWeight.SemiBold)
+                Text(text = subtitle, style = VakilTheme.typography.labelSmall, color = VakilTheme.colors.textSecondary)
+            }
         }
     }
 }
@@ -229,35 +263,91 @@ fun MoreScreen(
 @Composable
 private fun PermissionCard(
     title: String,
+    description: String,
     actionLabel: String,
     onAction: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(text = title, style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) {
-            Text(text = actionLabel)
+    AppCard {
+        Column(modifier = Modifier.padding(VakilTheme.spacing.md)) {
+            Text(text = title, style = VakilTheme.typography.bodyLarge, color = VakilTheme.colors.warning, fontWeight = FontWeight.Bold)
+            Text(text = description, style = VakilTheme.typography.bodyMedium, color = VakilTheme.colors.textSecondary)
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+            Button(
+                onClick = onAction,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = actionLabel, style = VakilTheme.typography.labelMedium)
+            }
         }
     }
 }
 
 @Composable
-private fun ThemeOptionRow(
-    label: String,
-    selected: Boolean,
-    onSelect: () -> Unit
+private fun ThemeOptionGroup(
+    options: List<Pair<ThemeMode, String>>,
+    selected: ThemeMode,
+    onSelect: (ThemeMode) -> Unit
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(selected = selected, onClick = onSelect)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
     ) {
-        Text(text = label)
-        RadioButton(selected = selected, onClick = onSelect)
+        options.forEach { (mode, label) ->
+            val isSelected = selected == mode
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(mode) },
+                label = { Text(label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = VakilTheme.colors.accentPrimary,
+                    selectedLabelColor = VakilTheme.colors.onAccent,
+                    containerColor = VakilTheme.colors.bgElevated,
+                    labelColor = VakilTheme.colors.textSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = if (isSelected) Color.Transparent else VakilTheme.colors.bgSurfaceSoft
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanguageOptionGroup(
+    options: List<Pair<LanguageMode, String>>,
+    selected: LanguageMode,
+    onSelect: (LanguageMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
+    ) {
+        options.forEach { (mode, label) ->
+            val isSelected = selected == mode
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(mode) },
+                label = { Text(label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = VakilTheme.colors.accentPrimary,
+                    selectedLabelColor = VakilTheme.colors.onAccent,
+                    containerColor = VakilTheme.colors.bgElevated,
+                    labelColor = VakilTheme.colors.textSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = if (isSelected) Color.Transparent else VakilTheme.colors.bgSurfaceSoft
+                )
+            )
+        }
     }
 }

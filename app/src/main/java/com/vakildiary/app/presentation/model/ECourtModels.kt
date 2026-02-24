@@ -8,6 +8,7 @@ data class ECourtSearchForm(
     val stateCode: String = "",
     val districtCode: String = "",
     val courtCode: String = "",
+    val establishmentCode: String = "",
     val caseType: String = "",
     val caseNumber: String = "",
     val year: String = "",

@@ -56,7 +56,7 @@
     <string name="ecourt_captcha_refresh">Refresh captcha</string>
     <string name="ecourt_recent_empty">No recent entries</string>
     <string name="judgment_search_title">Judgment Search</string>
-    <string name="judgment_search_hint">Search by case name, citation, bench, keyword</string>
+    <string name="judgment_search_hint">Search by party, case number, citation, judge</string>
     <string name="judgment_year">Year</string>
     <string name="judgment_offline">No internet connection. Judgment search unavailable.</string>
     <string name="judgment_search_button">Search</string>
@@ -67,6 +67,8 @@
     <string name="judgment_id">Judgment ID</string>
     <string name="judgment_citation">Citation</string>
     <string name="judgment_bench">Bench</string>
+    <string name="judgment_case_number">Case No</string>
+    <string name="judgment_coram">Coram</string>
     <string name="judgment_no_case">No case (store in Documents)</string>
     <string name="judgment_attach_case">Attach to Case</string>
     <string name="judgment_no_case_option">No case</string>

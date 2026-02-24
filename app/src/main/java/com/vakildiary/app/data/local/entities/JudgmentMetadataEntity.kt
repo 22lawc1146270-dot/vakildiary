@@ -10,8 +10,12 @@ data class JudgmentMetadataEntity(
     val title: String,
     val citation: String?,
     val bench: String?,
+    val coram: String?,
+    val caseNumber: String?,
     val year: Int,
-    val fileUrl: String,
+    val archiveName: String,
+    val fileName: String,
     val dateOfJudgment: Long?,
+    val searchText: String,
     val syncedAt: Long
 )

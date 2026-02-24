@@ -33,7 +33,9 @@ import com.vakildiary.app.domain.model.CourtType
 @Composable
 fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenDocket: () -> Unit = {},
+    docketPendingCount: Int = 0
 ) {
     NavHost(
         navController = navController,
@@ -59,6 +61,7 @@ fun AppNavGraph(
                 navArgument(Screen.AddCase.ARG_ECOURT_STATE_CODE) { defaultValue = ""; nullable = true },
                 navArgument(Screen.AddCase.ARG_ECOURT_DISTRICT_CODE) { defaultValue = ""; nullable = true },
                 navArgument(Screen.AddCase.ARG_ECOURT_COURT_CODE) { defaultValue = ""; nullable = true },
+                navArgument(Screen.AddCase.ARG_ECOURT_ESTABLISHMENT_CODE) { defaultValue = ""; nullable = true },
                 navArgument(Screen.AddCase.ARG_ECOURT_CASE_TYPE_CODE) { defaultValue = ""; nullable = true },
                 navArgument(Screen.AddCase.ARG_ECOURT_YEAR) { defaultValue = ""; nullable = true }
             )
@@ -73,6 +76,7 @@ fun AppNavGraph(
             val ecourtState = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_STATE_CODE)
             val ecourtDistrict = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_DISTRICT_CODE)
             val ecourtCourt = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_COURT_CODE)
+            val ecourtEstablishment = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_ESTABLISHMENT_CODE)
             val ecourtCaseType = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_CASE_TYPE_CODE)
             val ecourtYear = entry.arguments?.getString(Screen.AddCase.ARG_ECOURT_YEAR)
             AddCaseScreen(
@@ -86,6 +90,7 @@ fun AppNavGraph(
                 prefillEcourtStateCode = ecourtState,
                 prefillEcourtDistrictCode = ecourtDistrict,
                 prefillEcourtCourtCode = ecourtCourt,
+                prefillEcourtEstablishmentCode = ecourtEstablishment,
                 prefillEcourtCaseTypeCode = ecourtCaseType,
                 prefillEcourtYear = ecourtYear,
                 onBack = { navController.popBackStack() }
@@ -192,11 +197,16 @@ fun AppNavGraph(
         }
         composable(Screen.Dashboard.route) {
             DashboardScreen(
-                onOpenOverdue = { navController.navigate(Screen.OverdueTasks.route) }
+                onOpenOverdue = { navController.navigate(Screen.OverdueTasks.route) },
+                onOpenDocket = onOpenDocket,
+                onAddTask = { navController.navigate(Screen.AddTask.createRoute(null)) },
+                docketPendingCount = docketPendingCount
             )
         }
         composable(Screen.Calendar.route) {
-            CalendarScreen()
+            CalendarScreen(
+                onAddTask = { navController.navigate(Screen.AddTask.createRoute(null)) }
+            )
         }
         composable(Screen.Documents.route) {
             DocumentListScreen()
@@ -220,6 +230,7 @@ fun AppNavGraph(
                         ecourtStateCode = form.stateCode,
                         ecourtDistrictCode = form.districtCode,
                         ecourtCourtCode = form.courtCode,
+                        ecourtEstablishmentCode = form.establishmentCode,
                         ecourtCaseTypeCode = form.caseType,
                         ecourtYear = form.year
                     )

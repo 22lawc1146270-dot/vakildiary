@@ -15,7 +15,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    private const val ECOURT_BASE_URL = "https://hcservices.ecourts.gov.in/ecourtindiaHC/"
+    private const val ECOURT_BASE_URL = "https://services.ecourts.gov.in/ecourtindia_v6/"
     private const val SC_JUDGMENT_BASE_URL = "https://indian-supreme-court-judgments.s3.amazonaws.com/"
 
     @Provides

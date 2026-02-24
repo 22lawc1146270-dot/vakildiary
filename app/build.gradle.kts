@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+    implementation(libs.commons.compress)
 
     // Coil
     implementation(libs.coil.compose)

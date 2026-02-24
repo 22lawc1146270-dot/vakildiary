@@ -5,11 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -35,8 +34,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,10 +42,12 @@ import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.presentation.viewmodels.JudgmentDownloadUiState
+import com.vakildiary.app.presentation.viewmodels.JudgmentSyncState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchViewModel
 import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
 import com.vakildiary.app.presentation.util.rememberIsOnline
+import java.time.Year
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,15 +56,21 @@ fun JudgmentSearchScreen(
     viewModel: JudgmentSearchViewModel = hiltViewModel()
 ) {
     var query by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf(Year.now().value.toString()) }
     var expanded by remember { mutableStateOf(false) }
     var selectedCaseId by remember { mutableStateOf<String?>(null) }
     var previewItem by remember { mutableStateOf<JudgmentSearchResult?>(null) }
     var showPreview by remember { mutableStateOf(false) }
+    var yearExpanded by remember { mutableStateOf(false) }
+    val years = remember {
+        val currentYear = Year.now().value
+        (currentYear downTo 1950).map { it.toString() }
+    }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val casesState by viewModel.casesState.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
 
     Scaffold(
@@ -80,99 +85,147 @@ fun JudgmentSearchScreen(
             )
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text(text = stringResource(id = R.string.judgment_search_hint)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = year,
-                onValueChange = { year = it },
-                label = { Text(text = stringResource(id = R.string.judgment_year)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            if (!isOnline) {
-                Text(
-                    text = stringResource(id = R.string.judgment_offline),
-                    color = MaterialTheme.colorScheme.error
+            item {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text(text = stringResource(id = R.string.judgment_search_hint)) },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            when (casesState) {
-                CasePickerUiState.Loading -> CircularProgressIndicator()
-                is CasePickerUiState.Error -> Text(text = (casesState as CasePickerUiState.Error).message)
-                is CasePickerUiState.Success -> {
-                    val cases = (casesState as CasePickerUiState.Success).cases
-                    CaseDropdown(
-                        cases = cases,
-                        selectedCaseId = selectedCaseId,
-                        expanded = expanded,
-                        onExpandedChange = { expanded = it },
-                        onSelected = { selectedCaseId = it }
+            item {
+                ExposedDropdownMenuBox(
+                    expanded = yearExpanded,
+                    onExpandedChange = { yearExpanded = !yearExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = year,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(text = stringResource(id = R.string.judgment_year)) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = yearExpanded) }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = yearExpanded,
+                        onDismissRequest = { yearExpanded = false }
+                    ) {
+                        years.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(text = option) },
+                                onClick = {
+                                    year = option
+                                    yearExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!isOnline) {
+                item {
+                    Text(
+                        text = stringResource(id = R.string.judgment_offline),
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
 
-            Button(
-                onClick = { viewModel.search(query, year) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = isOnline
-            ) {
-                Text(text = stringResource(id = R.string.judgment_search_button))
-            }
-
-            when (downloadState) {
-                JudgmentDownloadUiState.Loading -> CircularProgressIndicator()
-                is JudgmentDownloadUiState.Error -> Text(
-                    text = (downloadState as JudgmentDownloadUiState.Error).message,
-                    color = MaterialTheme.colorScheme.error
-                )
-                is JudgmentDownloadUiState.Success -> {
-                    val message = (downloadState as JudgmentDownloadUiState.Success).message
-                    if (message.isNotBlank()) {
-                        Text(text = message, color = MaterialTheme.colorScheme.primary)
+            item {
+                when (casesState) {
+                    CasePickerUiState.Loading -> CircularProgressIndicator()
+                    is CasePickerUiState.Error -> Text(text = (casesState as CasePickerUiState.Error).message)
+                    is CasePickerUiState.Success -> {
+                        val cases = (casesState as CasePickerUiState.Success).cases
+                        CaseDropdown(
+                            cases = cases,
+                            selectedCaseId = selectedCaseId,
+                            expanded = expanded,
+                            onExpandedChange = { expanded = it },
+                            onSelected = { selectedCaseId = it }
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            item {
+                Button(
+                    onClick = { viewModel.search(query, year) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = isOnline && year.isNotBlank()
+                ) {
+                    Text(text = stringResource(id = R.string.judgment_search_button))
+                }
+            }
+
+            item {
+                if (syncState is JudgmentSyncState.Syncing) {
+                    Text(
+                        text = (syncState as JudgmentSyncState.Syncing).message,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                when (downloadState) {
+                    JudgmentDownloadUiState.Loading -> CircularProgressIndicator()
+                    is JudgmentDownloadUiState.Error -> Text(
+                        text = (downloadState as JudgmentDownloadUiState.Error).message,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    is JudgmentDownloadUiState.Success -> {
+                        val message = (downloadState as JudgmentDownloadUiState.Success).message
+                        if (message.isNotBlank()) {
+                            Text(text = message, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
 
             when (val state = uiState) {
-                JudgmentSearchUiState.Loading -> CircularProgressIndicator()
-                is JudgmentSearchUiState.Error -> Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error
-                )
+                JudgmentSearchUiState.Loading -> {
+                    item { CircularProgressIndicator() }
+                }
+                is JudgmentSearchUiState.Error -> {
+                    item {
+                        Text(
+                            text = state.message,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
                 is JudgmentSearchUiState.Success -> {
                     if (state.results.isNotEmpty()) {
-                        Text(text = stringResource(id = R.string.judgment_results), style = MaterialTheme.typography.titleMedium)
-                    }
-                    LazyColumn(
-                        contentPadding = PaddingValues(bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(state.results) { item ->
-                            JudgmentRow(
-                                item = item,
-                                canDownload = isOnline,
-                                onDownload = { viewModel.download(item, selectedCaseId) },
-                                onPreview = {
-                                    previewItem = item
-                                    showPreview = true
-                                }
+                        item {
+                            Text(
+                                text = stringResource(id = R.string.judgment_results),
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
+                    }
+                    items(state.results) { item ->
+                        JudgmentRow(
+                            item = item,
+                            canDownload = isOnline,
+                            onDownload = { viewModel.download(item, selectedCaseId) },
+                            onPreview = {
+                                previewItem = item
+                                showPreview = true
+                            }
+                        )
                     }
                 }
             }
@@ -210,6 +263,18 @@ private fun JudgmentRow(
             if (meta.isNotBlank()) {
                 Text(text = meta, style = MaterialTheme.typography.bodySmall)
             }
+            if (!item.caseNumber.isNullOrBlank()) {
+                Text(
+                    text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (!item.coram.isNullOrBlank()) {
+                Text(
+                    text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             item.dateOfJudgment?.let { date ->
                 Text(
                     text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}",
@@ -241,23 +306,28 @@ private fun JudgmentPreview(
     canDownload: Boolean,
     onDownload: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(text = item.title, style = MaterialTheme.typography.titleMedium)
-        Text(text = "${stringResource(id = R.string.judgment_id)}: ${item.judgmentId}")
-        if (!item.citation.isNullOrBlank()) {
-            Text(text = "${stringResource(id = R.string.judgment_citation)}: ${item.citation}")
-        }
-        if (!item.bench.isNullOrBlank()) {
-            Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
-        }
-        item.dateOfJudgment?.let { date ->
-            Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
-        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = item.title, style = MaterialTheme.typography.titleMedium)
+            item.caseNumber?.let { caseNumber ->
+                Text(text = "${stringResource(id = R.string.judgment_case_number)}: $caseNumber")
+            }
+            if (!item.citation.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.judgment_citation)}: ${item.citation}")
+            }
+            if (!item.bench.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
+            }
+            if (!item.coram.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}")
+            }
+            item.dateOfJudgment?.let { date ->
+                Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
+            }
         Button(
             onClick = onDownload,
             modifier = Modifier.fillMaxWidth(),

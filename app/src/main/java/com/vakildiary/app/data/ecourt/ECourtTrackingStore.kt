@@ -81,6 +81,12 @@ class ECourtTrackingStore @Inject constructor(
         }
     }
 
+    suspend fun saveLastAppToken(token: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_LAST_APP_TOKEN] = token
+        }
+    }
+
     suspend fun getLastCaptcha(): String? {
         val prefs = dataStore.data.first()
         return prefs[KEY_LAST_CAPTCHA]
@@ -91,6 +97,11 @@ class ECourtTrackingStore @Inject constructor(
         return prefs[KEY_LAST_CSRF_MAGIC]
     }
 
+    suspend fun getLastAppToken(): String? {
+        val prefs = dataStore.data.first()
+        return prefs[KEY_LAST_APP_TOKEN]
+    }
+
     private fun key(caseId: String) = stringPreferencesKey("$PREFIX$caseId")
 
     private fun serialize(info: ECourtTrackingInfo): String {
@@ -99,6 +110,7 @@ class ECourtTrackingStore @Inject constructor(
             info.stateCode,
             info.districtCode,
             info.courtCode,
+            info.establishmentCode.orEmpty(),
             info.caseTypeCode,
             info.caseNumber,
             info.year,
@@ -112,18 +124,23 @@ class ECourtTrackingStore @Inject constructor(
     private fun deserialize(raw: String): ECourtTrackingInfo? {
         val parts = raw.split(DELIMITER)
         if (parts.size < 10) return null
-        val courtType = parts[7].takeIf { it.isNotBlank() }?.let { CourtType.valueOf(it) }
+        val hasEstablishment = parts.size >= 11
+        val establishmentCode = if (hasEstablishment) parts[3].takeIf { it.isNotBlank() } else null
+        val offset = if (hasEstablishment) 1 else 0
+        val courtTypeIndex = 7 + offset
+        val courtType = parts.getOrNull(courtTypeIndex)?.takeIf { it.isNotBlank() }?.let { CourtType.valueOf(it) }
         return ECourtTrackingInfo(
             stateCode = parts[0],
             districtCode = parts[1],
             courtCode = parts[2],
-            caseTypeCode = parts[3],
-            caseNumber = parts[4],
-            year = parts[5],
-            courtName = parts[6],
+            establishmentCode = establishmentCode,
+            caseTypeCode = parts[3 + offset],
+            caseNumber = parts[4 + offset],
+            year = parts[5 + offset],
+            courtName = parts[6 + offset],
             courtType = courtType,
-            lastStage = parts[8].takeIf { it.isNotBlank() },
-            lastNextDate = parts[9].takeIf { it.isNotBlank() }
+            lastStage = parts[8 + offset].takeIf { it.isNotBlank() },
+            lastNextDate = parts[9 + offset].takeIf { it.isNotBlank() }
         )
     }
 
@@ -151,6 +168,7 @@ class ECourtTrackingStore @Inject constructor(
         private val KEY_RECENT_CASE_TYPES = stringPreferencesKey("ecourt_recent_case_types")
         private val KEY_LAST_CAPTCHA = stringPreferencesKey("ecourt_last_captcha")
         private val KEY_LAST_CSRF_MAGIC = stringPreferencesKey("ecourt_last_csrf")
+        private val KEY_LAST_APP_TOKEN = stringPreferencesKey("ecourt_last_app_token")
         private const val RECENT_DELIMITER = "|"
         private const val RECENT_LIMIT = 6
     }

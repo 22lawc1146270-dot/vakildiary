@@ -12,9 +12,20 @@ interface SCJudgmentService {
         @Path("year") year: String
     ): MetadataIndexDto
 
+    @GET("data/tar/year={year}/english/english.index.json")
+    suspend fun getEnglishIndex(
+        @Path("year") year: String
+    ): MetadataIndexDto
+
     @Streaming
     @GET
     suspend fun downloadJudgment(
         @Url judgmentPath: String
+    ): ResponseBody
+
+    @Streaming
+    @GET
+    suspend fun downloadArchive(
+        @Url archivePath: String
     ): ResponseBody
 }

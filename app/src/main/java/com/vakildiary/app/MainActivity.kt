@@ -9,10 +9,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -21,22 +30,30 @@ import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Badge
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +74,7 @@ import com.vakildiary.app.presentation.screens.docket.HearingOutcomeDialog
 import com.vakildiary.app.presentation.theme.VakilDiaryTheme
 import com.vakildiary.app.presentation.theme.ThemeMode
 import com.vakildiary.app.presentation.theme.LanguageMode
+import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AuthViewModel
 import com.vakildiary.app.presentation.viewmodels.DocketUiState
 import com.vakildiary.app.presentation.viewmodels.TodayDocketViewModel
@@ -88,11 +106,6 @@ class MainActivity : ComponentActivity() {
             val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
             val languageMode by settingsViewModel.languageMode.collectAsStateWithLifecycle()
             val notificationPromptShown by settingsViewModel.isNotificationPromptShown.collectAsStateWithLifecycle()
-            val isDarkTheme = when (themeMode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-            }
 
             LaunchedEffect(languageMode) {
                 val locales = when (languageMode) {
@@ -103,261 +116,329 @@ class MainActivity : ComponentActivity() {
                 AppCompatDelegate.setApplicationLocales(locales)
             }
 
-            VakilDiaryTheme(darkTheme = isDarkTheme) {
-                val authViewModel: AuthViewModel = hiltViewModel()
-                val userEmail by authViewModel.userEmail.collectAsStateWithLifecycle()
-                val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
-                val isSignInSkipped by authViewModel.isSignInSkipped.collectAsStateWithLifecycle()
-                val appLockViewModel: AppLockViewModel = hiltViewModel()
-                val isAppLockEnabled by appLockViewModel.isAppLockEnabled.collectAsStateWithLifecycle()
-                val context = LocalContext.current
-                val activity = context as? FragmentActivity
-                var isUnlocked by rememberSaveable { mutableStateOf(false) }
-                val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-                ) { settingsViewModel.setNotificationPromptShown(true) }
-
-                if (userEmail.isNullOrBlank() && !isSignInSkipped) {
-                    SignInScreen(viewModel = authViewModel, uiState = authUiState)
-                } else {
-                    LaunchedEffect(Unit) {
-                        NotificationScheduler.scheduleDailyDigest(this@MainActivity)
-                        ECourtSyncScheduler.scheduleECourtSync(this@MainActivity)
-                        DeltaSyncScheduler.scheduleDeltaSync(this@MainActivity)
+            VakilDiaryTheme(themeMode = themeMode) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = VakilTheme.colors.bgPrimary
+                ) {
+                    val authViewModel: AuthViewModel = hiltViewModel()
+                    val userEmail by authViewModel.userEmail.collectAsStateWithLifecycle()
+                    val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
+                    val isSignInSkipped by authViewModel.isSignInSkipped.collectAsStateWithLifecycle()
+                    val appLockViewModel: AppLockViewModel = hiltViewModel()
+                    val isAppLockEnabled by appLockViewModel.isAppLockEnabled.collectAsStateWithLifecycle()
+                    val context = LocalContext.current
+                    val activity = context as? FragmentActivity
+                    val biometricLockManager = remember { BiometricLockManager() }
+                    val isBiometricAvailable = remember(context) {
+                        biometricLockManager.isBiometricAvailable(context)
                     }
-                    val backupStatusViewModel: BackupStatusViewModel = hiltViewModel()
-                    val backupSchedule by backupStatusViewModel.backupSchedule.collectAsStateWithLifecycle()
-                    LaunchedEffect(backupSchedule) {
-                        BackupScheduler.scheduleBackup(this@MainActivity, backupSchedule)
-                    }
+                    var isUnlocked by rememberSaveable { mutableStateOf(false) }
+                    var isAuthenticating by rememberSaveable { mutableStateOf(false) }
+                    var lockError by rememberSaveable { mutableStateOf<String?>(null) }
+                    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { settingsViewModel.setNotificationPromptShown(true) }
 
-                    LaunchedEffect(notificationPromptShown) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            !notificationPromptShown
-                        ) {
-                            val granted = ContextCompat.checkSelfPermission(
-                                this@MainActivity,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                            if (granted) {
-                                settingsViewModel.setNotificationPromptShown(true)
-                            } else {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    if (userEmail.isNullOrBlank() && !isSignInSkipped) {
+                        SignInScreen(viewModel = authViewModel, uiState = authUiState)
+                    } else {
+                        LaunchedEffect(Unit) {
+                            NotificationScheduler.scheduleDailyDigest(this@MainActivity)
+                            ECourtSyncScheduler.scheduleECourtSync(this@MainActivity)
+                            DeltaSyncScheduler.scheduleDeltaSync(this@MainActivity)
+                        }
+                        val backupStatusViewModel: BackupStatusViewModel = hiltViewModel()
+                        val backupSchedule by backupStatusViewModel.backupSchedule.collectAsStateWithLifecycle()
+                        LaunchedEffect(backupSchedule) {
+                            BackupScheduler.scheduleBackup(this@MainActivity, backupSchedule)
+                        }
+
+                        LaunchedEffect(isAppLockEnabled, isBiometricAvailable) {
+                            if (isAppLockEnabled && !isBiometricAvailable) {
+                                appLockViewModel.setAppLockEnabled(false)
                             }
                         }
-                    }
 
-                    if (isAppLockEnabled && !isUnlocked && activity != null) {
-                        LaunchedEffect(isAppLockEnabled) {
-                            BiometricLockManager().authenticate(
-                                activity = activity,
+                        LaunchedEffect(notificationPromptShown) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                !notificationPromptShown
+                            ) {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    this@MainActivity,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (granted) {
+                                    settingsViewModel.setNotificationPromptShown(true)
+                                } else {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                        }
+
+                        val needsLock = isAppLockEnabled && isBiometricAvailable && !isUnlocked && activity != null
+                        val startBiometric: () -> Unit = start@{
+                            val currentActivity = activity ?: return@start
+                            if (!needsLock || isAuthenticating) return@start
+                            isAuthenticating = true
+                            lockError = null
+                            biometricLockManager.authenticate(
+                                activity = currentActivity,
                                 title = "Unlock VakilDiary",
                                 subtitle = "Authenticate to continue",
-                                onSuccess = { isUnlocked = true },
-                                onError = { }
+                                onSuccess = {
+                                    isUnlocked = true
+                                    isAuthenticating = false
+                                },
+                                onError = { message ->
+                                    lockError = message
+                                    isAuthenticating = false
+                                }
                             )
                         }
-                        return@VakilDiaryTheme
-                    }
 
-                    val restoreViewModel: RestoreViewModel = hiltViewModel()
-                    val restoreUiState by restoreViewModel.uiState.collectAsStateWithLifecycle()
-
-                    LaunchedEffect(userEmail, isSignInSkipped) {
-                        if (!userEmail.isNullOrBlank()) {
-                            restoreViewModel.checkForRestore()
-                        }
-                    }
-
-                    val navController = rememberNavController()
-                    val deepLinkRoute = notificationRoute.value
-                    LaunchedEffect(deepLinkRoute) {
-                        val route = deepLinkRoute
-                        if (!route.isNullOrBlank()) {
-                            navController.navigate(route) {
-                                launchSingleTop = true
+                        LaunchedEffect(needsLock) {
+                            if (needsLock) {
+                                startBiometric()
+                            } else {
+                                isAuthenticating = false
+                                lockError = null
                             }
-                            notificationRoute.value = null
                         }
-                    }
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentDestination = navBackStackEntry?.destination
-                    val docketViewModel: TodayDocketViewModel = hiltViewModel()
-                    val docketUiState by docketViewModel.uiState.collectAsStateWithLifecycle()
-                    var isDocketSheetOpen by remember { mutableStateOf(false) }
-                    var pendingOutcomeHearingId by remember { mutableStateOf<String?>(null) }
-                    var pendingVoiceNotePath by remember { mutableStateOf<String?>(null) }
-                    val voiceNoteRecorder = rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.StartActivityForResult()
-                    ) { result ->
-                        val uri = result.data?.data
-                        pendingVoiceNotePath = uri?.let { copyVoiceNoteToInternal(it) }
-                    }
 
-                    val overdueTasksViewModel: OverdueTasksViewModel = hiltViewModel()
-                    val overdueCount by overdueTasksViewModel.overdueCount.collectAsStateWithLifecycle()
+                        if (needsLock) {
+                            AppLockScreen(
+                                isAuthenticating = isAuthenticating,
+                                errorMessage = lockError,
+                                onRetry = startBiometric
+                            )
+                        } else {
+                            val restoreViewModel: RestoreViewModel = hiltViewModel()
+                            val restoreUiState by restoreViewModel.uiState.collectAsStateWithLifecycle()
 
-                    val items = listOf(
-                        BottomNavItem("Home", Icons.Default.Home, Screen.Dashboard, badgeCount = overdueCount),
-                        BottomNavItem("Cases", Icons.Default.Work, Screen.CaseList),
-                        BottomNavItem("Calendar", Icons.Default.Event, Screen.Calendar),
-                        BottomNavItem("Documents", Icons.Default.Folder, Screen.Documents),
-                        BottomNavItem("More", Icons.Default.Menu, Screen.More)
-                    )
-
-                    val pendingCount = when (docketUiState) {
-                        is DocketUiState.Success -> {
-                            val state = docketUiState as DocketUiState.Success
-                            (state.totalCount - state.completedCount).coerceAtLeast(0)
-                        }
-                        else -> 0
-                    }
-                    val totalCount = (docketUiState as? DocketUiState.Success)?.totalCount ?: 0
-                    val allDone = totalCount > 0 && pendingCount == 0
-
-                    Scaffold(
-                        floatingActionButton = {
-                            FloatingActionButton(
-                                onClick = { isDocketSheetOpen = true },
-                                containerColor = if (allDone) Color(0xFF1E7A4A) else Color(0xFFE67E22),
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        if (pendingCount > 0) {
-                                            Badge(containerColor = Color(0xFFC0392B)) {
-                                                Text(text = pendingCount.toString())
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    val icon = if (allDone) Icons.Default.Check else Icons.Default.Gavel
-                                    Icon(imageVector = icon, contentDescription = "Today's Docket")
+                            LaunchedEffect(userEmail, isSignInSkipped) {
+                                if (!userEmail.isNullOrBlank()) {
+                                    restoreViewModel.checkForRestore()
                                 }
                             }
-                        },
-                        bottomBar = {
-                            NavigationBar {
-                                items.forEach { item ->
-                                    val selected = currentDestination
-                                        ?.hierarchy
-                                        ?.any { it.route == item.screen.route } == true
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = {
-                                            navController.navigate(item.screen.route) {
-                                                popUpTo(navController.graph.startDestinationId) {
-                                                    saveState = true
-                                                }
-                                                launchSingleTop = true
-                                                restoreState = true
-                                            }
-                                        },
-                                        icon = {
-                                            BadgedBox(
-                                                badge = {
-                                                    if (item.badgeCount > 0) {
-                                                        Badge(containerColor = Color(0xFFC0392B)) {
-                                                            Text(text = item.badgeCount.toString())
+
+                            val navController = rememberNavController()
+                            val deepLinkRoute = notificationRoute.value
+                            LaunchedEffect(deepLinkRoute) {
+                                val route = deepLinkRoute
+                                if (!route.isNullOrBlank()) {
+                                    navController.navigate(route) {
+                                        launchSingleTop = true
+                                    }
+                                    notificationRoute.value = null
+                                }
+                            }
+                            val navBackStackEntry by navController.currentBackStackEntryAsState()
+                            val currentDestination = navBackStackEntry?.destination
+                            val docketViewModel: TodayDocketViewModel = hiltViewModel()
+                            val docketUiState by docketViewModel.uiState.collectAsStateWithLifecycle()
+                            var isDocketSheetOpen by remember { mutableStateOf(false) }
+                            var pendingOutcomeHearingId by remember { mutableStateOf<String?>(null) }
+                            var pendingVoiceNotePath by remember { mutableStateOf<String?>(null) }
+                            val voiceNoteRecorder = rememberLauncherForActivityResult(
+                                contract = ActivityResultContracts.StartActivityForResult()
+                            ) { result ->
+                                val uri = result.data?.data
+                                pendingVoiceNotePath = uri?.let { copyVoiceNoteToInternal(it) }
+                            }
+
+                            val overdueTasksViewModel: OverdueTasksViewModel = hiltViewModel()
+                            val overdueCount by overdueTasksViewModel.overdueCount.collectAsStateWithLifecycle()
+
+                            val items = listOf(
+                                BottomNavItem("Home", Icons.Default.Home, Screen.Dashboard, badgeCount = overdueCount),
+                                BottomNavItem("Cases", Icons.Default.Work, Screen.CaseList),
+                                BottomNavItem("Calendar", Icons.Default.Event, Screen.Calendar),
+                                BottomNavItem("Documents", Icons.Default.Folder, Screen.Documents),
+                                BottomNavItem("More", Icons.Default.Menu, Screen.More)
+                            )
+
+                            val pendingCount = when (docketUiState) {
+                                is DocketUiState.Success -> {
+                                    val state = docketUiState as DocketUiState.Success
+                                    (state.totalCount - state.completedCount).coerceAtLeast(0)
+                                }
+                                else -> 0
+                            }
+                            Scaffold(
+                                bottomBar = {
+                                    NavigationBar(
+                                        containerColor = VakilTheme.colors.bgSecondary,
+                                        tonalElevation = 0.dp
+                                    ) {
+                                        items.forEach { item ->
+                                            val selected = currentDestination
+                                                ?.hierarchy
+                                                ?.any { it.route == item.screen.route } == true
+                                            NavigationBarItem(
+                                                selected = selected,
+                                                onClick = {
+                                                    navController.navigate(item.screen.route) {
+                                                        popUpTo(navController.graph.startDestinationId) {
+                                                            saveState = true
+                                                        }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
+                                                },
+                                                icon = {
+                                                    BadgedBox(
+                                                        badge = {
+                                                            if (item.badgeCount > 0) {
+                                                                Badge(containerColor = VakilTheme.colors.error) {
+                                                                    Text(text = item.badgeCount.toString())
+                                                                }
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = item.icon, 
+                                                            contentDescription = item.label
+                                                        )
+                                                    }
+                                                },
+                                                label = {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Text(
+                                                            text = item.label,
+                                                            style = VakilTheme.typography.labelSmall,
+                                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                                        )
+                                                        if (selected) {
+                                                            Spacer(modifier = Modifier.height(2.dp))
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .width(12.dp)
+                                                                    .height(2.dp)
+                                                                    .background(
+                                                                        VakilTheme.colors.accentPrimary,
+                                                                        RoundedCornerShape(100.dp)
+                                                                    )
+                                                            )
                                                         }
                                                     }
-                                                }
-                                            ) {
-                                                Icon(imageVector = item.icon, contentDescription = item.label)
-                                            }
-                                        },
-                                        label = { Text(text = item.label) }
-                                    )
-                                }
+                                                },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    selectedIconColor = VakilTheme.colors.accentPrimary,
+                                                    unselectedIconColor = VakilTheme.colors.textSecondary,
+                                                    selectedTextColor = VakilTheme.colors.accentPrimary,
+                                                    unselectedTextColor = VakilTheme.colors.textSecondary,
+                                                    indicatorColor = Color.Transparent
+                                                )
+                                            )
+                                        }
+                                    }
+                                },
+                                containerColor = VakilTheme.colors.bgPrimary
+                            ) { paddingValues ->
+                                AppNavGraph(
+                                    navController = navController,
+                                    modifier = Modifier.padding(paddingValues),
+                                    onOpenDocket = { isDocketSheetOpen = true },
+                                    docketPendingCount = pendingCount
+                                )
+                            }
+
+                            if (isDocketSheetOpen) {
+                                TodayDocketBottomSheet(
+                                    uiState = docketUiState,
+                                    onDismiss = { isDocketSheetOpen = false },
+                                    onToggleHearing = { _, _ -> },
+                                    onHearingOutcome = { hearingId ->
+                                        pendingOutcomeHearingId = hearingId
+                                        pendingVoiceNotePath = null
+                                    },
+                                    onToggleTask = { taskId, isCompleted ->
+                                        if (isCompleted) {
+                                            docketViewModel.markTaskComplete(taskId)
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (pendingOutcomeHearingId != null) {
+                                val caseName = docketViewModel.getCaseName(pendingOutcomeHearingId!!).orEmpty()
+                                HearingOutcomeDialog(
+                                    caseName = if (caseName.isBlank()) "Case" else caseName,
+                                    voiceNotePath = pendingVoiceNotePath,
+                                    onDismiss = { pendingOutcomeHearingId = null },
+                                    onAddVoiceNote = {
+                                        val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+                                        voiceNoteRecorder.launch(intent)
+                                    },
+                                    onSkipAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
+                                        docketViewModel.markHearingComplete(
+                                            hearingId = pendingOutcomeHearingId!!,
+                                            outcome = outcome,
+                                            orderDetails = orderDetails.ifBlank { null },
+                                            adjournmentReason = adjournmentReason.ifBlank { null },
+                                            voiceNotePath = pendingVoiceNotePath,
+                                            nextDate = parseDate(nextDate)
+                                        )
+                                        pendingOutcomeHearingId = null
+                                        pendingVoiceNotePath = null
+                                    },
+                                    onSaveAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
+                                        docketViewModel.markHearingComplete(
+                                            hearingId = pendingOutcomeHearingId!!,
+                                            outcome = outcome,
+                                            orderDetails = orderDetails.ifBlank { null },
+                                            adjournmentReason = adjournmentReason.ifBlank { null },
+                                            voiceNotePath = pendingVoiceNotePath,
+                                            nextDate = parseDate(nextDate)
+                                        )
+                                        pendingOutcomeHearingId = null
+                                        pendingVoiceNotePath = null
+                                    }
+                                )
+                            }
+
+                            if (restoreUiState is RestoreUiState.Available ||
+                                restoreUiState is RestoreUiState.Restoring ||
+                                restoreUiState is RestoreUiState.Error
+                            ) {
+                                AlertDialog(
+                                    onDismissRequest = { restoreViewModel.skipRestore() },
+                                    title = { Text(text = "Restore from backup?", style = VakilTheme.typography.headlineMedium) },
+                                    text = {
+                                        val message = when (restoreUiState) {
+                                            is RestoreUiState.Restoring -> "Restoring your data..."
+                                            is RestoreUiState.Error -> (restoreUiState as RestoreUiState.Error).message
+                                            else -> "We found a backup in Google Drive. Would you like to restore now?"
+                                        }
+                                        Text(text = message, style = VakilTheme.typography.bodyLarge)
+                                    },
+                                    confirmButton = {
+                                        TextButton(
+                                            onClick = { restoreViewModel.restoreNow() },
+                                            enabled = restoreUiState !is RestoreUiState.Restoring
+                                        ) {
+                                            Text(
+                                                text = if (restoreUiState is RestoreUiState.Restoring) {
+                                                    "Restoring..."
+                                                } else {
+                                                    "Restore"
+                                                },
+                                                color = VakilTheme.colors.accentPrimary
+                                            )
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { restoreViewModel.skipRestore() }) {
+                                            Text(text = "Not now", color = VakilTheme.colors.textSecondary)
+                                        }
+                                    },
+                                    containerColor = VakilTheme.colors.bgElevated,
+                                    titleContentColor = VakilTheme.colors.textPrimary,
+                                    textContentColor = VakilTheme.colors.textSecondary
+                                )
                             }
                         }
-                    ) { paddingValues ->
-                        AppNavGraph(
-                            navController = navController,
-                            modifier = Modifier.padding(paddingValues)
-                        )
-                    }
-
-                    if (isDocketSheetOpen) {
-                        TodayDocketBottomSheet(
-                            uiState = docketUiState,
-                            onDismiss = { isDocketSheetOpen = false },
-                            onToggleHearing = { _, _ -> },
-                            onHearingOutcome = { hearingId ->
-                                pendingOutcomeHearingId = hearingId
-                                pendingVoiceNotePath = null
-                            },
-                            onToggleTask = { taskId, isCompleted ->
-                                if (isCompleted) {
-                                    docketViewModel.markTaskComplete(taskId)
-                                }
-                            }
-                        )
-                    }
-
-                    if (pendingOutcomeHearingId != null) {
-                        val caseName = docketViewModel.getCaseName(pendingOutcomeHearingId!!).orEmpty()
-                        HearingOutcomeDialog(
-                            caseName = if (caseName.isBlank()) "Case" else caseName,
-                            voiceNotePath = pendingVoiceNotePath,
-                            onDismiss = { pendingOutcomeHearingId = null },
-                            onAddVoiceNote = {
-                                val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
-                                voiceNoteRecorder.launch(intent)
-                            },
-                            onSkipAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
-                                docketViewModel.markHearingComplete(
-                                    hearingId = pendingOutcomeHearingId!!,
-                                    outcome = outcome,
-                                    orderDetails = orderDetails.ifBlank { null },
-                                    adjournmentReason = adjournmentReason.ifBlank { null },
-                                    voiceNotePath = pendingVoiceNotePath,
-                                    nextDate = parseDate(nextDate)
-                                )
-                                pendingOutcomeHearingId = null
-                                pendingVoiceNotePath = null
-                            },
-                            onSaveAndMarkDone = { outcome, orderDetails, adjournmentReason, nextDate ->
-                                docketViewModel.markHearingComplete(
-                                    hearingId = pendingOutcomeHearingId!!,
-                                    outcome = outcome,
-                                    orderDetails = orderDetails.ifBlank { null },
-                                    adjournmentReason = adjournmentReason.ifBlank { null },
-                                    voiceNotePath = pendingVoiceNotePath,
-                                    nextDate = parseDate(nextDate)
-                                )
-                                pendingOutcomeHearingId = null
-                                pendingVoiceNotePath = null
-                            }
-                        )
-                    }
-
-                    if (restoreUiState is RestoreUiState.Available || restoreUiState is RestoreUiState.Restoring || restoreUiState is RestoreUiState.Error) {
-                        AlertDialog(
-                            onDismissRequest = { restoreViewModel.skipRestore() },
-                            title = { Text(text = "Restore from backup?") },
-                            text = {
-                                val message = when (restoreUiState) {
-                                    is RestoreUiState.Restoring -> "Restoring your data..."
-                                    is RestoreUiState.Error -> (restoreUiState as RestoreUiState.Error).message
-                                    else -> "We found a backup in Google Drive. Would you like to restore now?"
-                                }
-                                Text(text = message)
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = { restoreViewModel.restoreNow() },
-                                    enabled = restoreUiState !is RestoreUiState.Restoring
-                                ) {
-                                    Text(text = if (restoreUiState is RestoreUiState.Restoring) "Restoring..." else "Restore")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { restoreViewModel.skipRestore() }) {
-                                    Text(text = "Not now")
-                                }
-                            }
-                        )
                     }
                 }
             }
@@ -392,6 +473,64 @@ class MainActivity : ComponentActivity() {
             target.absolutePath
         } catch (t: Throwable) {
             null
+        }
+    }
+}
+
+@Composable
+private fun AppLockScreen(
+    isAuthenticating: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(VakilTheme.colors.bgPrimary),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(VakilTheme.spacing.lg),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Unlock VakilDiary", 
+                style = VakilTheme.typography.headlineLarge,
+                color = VakilTheme.colors.textPrimary
+            )
+            Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+            if (isAuthenticating) {
+                CircularProgressIndicator(
+                    color = VakilTheme.colors.accentPrimary,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+            }
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage, 
+                    color = VakilTheme.colors.error,
+                    style = VakilTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
+            }
+            Button(
+                onClick = onRetry, 
+                enabled = !isAuthenticating,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VakilTheme.colors.accentPrimary,
+                    contentColor = VakilTheme.colors.onAccent
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = if (isAuthenticating) "Authenticating..." else "Unlock",
+                    style = VakilTheme.typography.labelMedium
+                )
+            }
         }
     }
 }
