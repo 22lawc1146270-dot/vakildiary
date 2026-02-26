@@ -4,21 +4,24 @@ import android.webkit.CookieManager
 import android.webkit.URLUtil
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -29,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.R
 import com.vakildiary.app.presentation.viewmodels.ReportableDownloadUiState
 import com.vakildiary.app.presentation.viewmodels.ReportableJudgmentViewModel
+import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,29 +41,12 @@ fun ReportableJudgmentScreen(
     caseNumber: String?,
     year: String?,
     onBack: () -> Unit,
+    onOpenDocuments: () -> Unit,
     viewModel: ReportableJudgmentViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val webView = remember { WebView(context) }
-
-    LaunchedEffect(downloadState) {
-        if (downloadState is ReportableDownloadUiState.Success) {
-            android.widget.Toast.makeText(
-                context,
-                context.getString(R.string.reportable_download_success),
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-            viewModel.resetState()
-        } else if (downloadState is ReportableDownloadUiState.Error) {
-            android.widget.Toast.makeText(
-                context,
-                (downloadState as ReportableDownloadUiState.Error).message,
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-            viewModel.resetState()
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -107,11 +94,49 @@ fun ReportableJudgmentScreen(
                     webView
                 }
             )
-
-            if (downloadState is ReportableDownloadUiState.Loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
         }
+    }
+
+    when (val state = downloadState) {
+        is ReportableDownloadUiState.Loading -> {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(text = context.getString(R.string.reportable_judgment_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(text = context.getString(R.string.reportable_download_in_progress))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+        is ReportableDownloadUiState.Success -> {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(text = context.getString(R.string.reportable_judgment_title)) },
+                text = { Text(text = context.getString(R.string.reportable_download_success)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.resetState()
+                        onOpenDocuments()
+                    }) { Text(text = context.getString(android.R.string.ok)) }
+                }
+            )
+        }
+        is ReportableDownloadUiState.Error -> {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(text = context.getString(R.string.reportable_download_failed_title)) },
+                text = { Text(text = state.message) },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.resetState() }) {
+                        Text(text = context.getString(android.R.string.ok))
+                    }
+                }
+            )
+        }
+        else -> Unit
     }
 }
 

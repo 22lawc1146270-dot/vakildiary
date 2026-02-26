@@ -255,7 +255,13 @@ fun AppNavGraph(
                 judgmentId = judgmentId,
                 caseNumber = caseNumber,
                 year = year,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenDocuments = {
+                    val popped = navController.popBackStack(Screen.Documents.route, false)
+                    if (!popped) {
+                        navController.navigate(Screen.Documents.route)
+                    }
+                }
             )
         }
         composable(Screen.More.route) {

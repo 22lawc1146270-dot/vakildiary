@@ -98,6 +98,8 @@
     <string name="document_reportable_unavailable">Reportable download unavailable for this judgment</string>
     <string name="reportable_judgment_title">Reportable Judgment</string>
     <string name="reportable_download_success">Reportable PDF downloaded. You can view it in Documents.</string>
+    <string name="reportable_download_in_progress">Downloading reportable PDF...</string>
+    <string name="reportable_download_failed_title">Download failed</string>
     <string name="case_register_success_title">Case registered</string>
     <string name="case_register_success_message">Case successfully registered.</string>
     <string name="case_register_error_title">Case registration failed</string>

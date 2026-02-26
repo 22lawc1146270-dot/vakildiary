@@ -91,6 +91,8 @@
     <string name="document_reportable_unavailable">इस निर्णय के लिए रिपोर्टेबल डाउनलोड उपलब्ध नहीं है</string>
     <string name="reportable_judgment_title">रिपोर्टेबल निर्णय</string>
     <string name="reportable_download_success">रिपोर्टेबल PDF डाउनलोड हो गया। आप इसे दस्तावेज़ों में देख सकते हैं।</string>
+    <string name="reportable_download_in_progress">रिपोर्टेबल PDF डाउनलोड हो रहा है...</string>
+    <string name="reportable_download_failed_title">डाउनलोड विफल</string>
     <string name="case_register_success_title">मामला पंजीकृत</string>
     <string name="case_register_success_message">मामला सफलतापूर्वक पंजीकृत हो गया।</string>
     <string name="case_register_error_title">मामला पंजीकरण विफल</string>
