@@ -23,8 +23,12 @@ object NetworkModule {
     private const val ECOURT_HOST = "services.ecourts.gov.in"
     private const val ECOURT_REFERER = "https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index"
     private const val ECOURT_ORIGIN = "https://services.ecourts.gov.in"
+    private const val SCI_HOST = "www.sci.gov.in"
+    private const val SCI_REFERER = "https://www.sci.gov.in/judgements-case-no/"
+    private const val SCI_ORIGIN = "https://www.sci.gov.in"
     private const val ECOURT_USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+    private const val SCI_USER_AGENT = ECOURT_USER_AGENT
 
     @Provides
     @Singleton
@@ -44,6 +48,16 @@ object NetworkModule {
                         .header("Origin", ECOURT_ORIGIN)
                         .header("Referer", ECOURT_REFERER)
                         .header("X-Requested-With", "XMLHttpRequest")
+                        .build()
+                    chain.proceed(updated)
+                } else if (request.url.host == SCI_HOST) {
+                    val updated = request.newBuilder()
+                        .header("User-Agent", SCI_USER_AGENT)
+                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .header("Accept-Language", "en-IN,en;q=0.9")
+                        .header("Origin", SCI_ORIGIN)
+                        .header("Referer", SCI_REFERER)
+                        .header("Upgrade-Insecure-Requests", "1")
                         .build()
                     chain.proceed(updated)
                 } else {

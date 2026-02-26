@@ -72,4 +72,7 @@ interface ECourtApiService {
 
     @GET
     suspend fun fetchCaptchaImage(@Url url: String): Response<ResponseBody>
+
+    @GET
+    suspend fun fetchCaseDetails(@Url url: String): Response<ResponseBody>
 }

@@ -24,5 +24,6 @@ data class ECourtCaseItem(
     val stage: String,
     val courtName: String,
     val courtType: CourtType?,
-    val clientName: String
+    val clientName: String,
+    val detailLink: String? = null
 )

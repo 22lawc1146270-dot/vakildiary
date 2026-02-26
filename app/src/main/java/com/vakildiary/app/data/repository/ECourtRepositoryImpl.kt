@@ -15,6 +15,9 @@ import javax.inject.Inject
 class ECourtRepositoryImpl @Inject constructor(
     private val apiService: ECourtApiService
 ) : ECourtRepository {
+    private companion object {
+        const val ECOURT_BASE_URL = "https://services.ecourts.gov.in/ecourtindia_v6/"
+    }
 
     override suspend fun fetchSession(): Result<ECourtSession> {
         return try {
@@ -191,9 +194,47 @@ class ECourtRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun fetchCaseDetails(
+        token: String,
+        detailLink: String
+    ): Result<String> {
+        return try {
+            val resolvedUrl = resolveCaseDetailUrl(detailLink, token)
+                ?: return Result.Error("Case detail link missing")
+            val response = apiService.fetchCaseDetails(resolvedUrl)
+            if (!response.isSuccessful) {
+                return Result.Error("Failed to load case details: ${response.code()}")
+            }
+            val html = response.body()?.string().orEmpty()
+            if (html.isBlank()) {
+                return Result.Error("Case details unavailable")
+            }
+            Result.Success(html)
+        } catch (t: Throwable) {
+            Result.Error("Failed to load case details", t)
+        }
+    }
+
     private suspend fun fetchCaptchaBytes(imageUrl: String): ByteArray? {
         val response = apiService.fetchCaptchaImage(imageUrl)
         if (!response.isSuccessful) return null
         return response.body()?.bytes()
+    }
+
+    private fun resolveCaseDetailUrl(detailLink: String, token: String): String? {
+        val cleaned = detailLink.replace("&amp;", "&").trim()
+        if (cleaned.isBlank()) return null
+        val baseUrl = when {
+            cleaned.startsWith("http", ignoreCase = true) -> cleaned
+            cleaned.startsWith("/") -> "https://services.ecourts.gov.in${cleaned}"
+            cleaned.startsWith("?") -> "${ECOURT_BASE_URL}${cleaned}"
+            else -> "${ECOURT_BASE_URL}${cleaned}"
+        }
+        if (token.isBlank() || baseUrl.contains("app_token=")) return baseUrl
+        return if (baseUrl.contains("?")) {
+            "$baseUrl&app_token=$token"
+        } else {
+            "$baseUrl?app_token=$token"
+        }
     }
 }

@@ -100,6 +100,15 @@
     <string name="reportable_download_success">Reportable PDF downloaded. You can view it in Documents.</string>
     <string name="reportable_download_in_progress">Downloading reportable PDF...</string>
     <string name="reportable_download_failed_title">Download failed</string>
+    <string name="reportable_case_type">Select case type</string>
+    <string name="reportable_case_number">Case Number*</string>
+    <string name="reportable_case_year">Case Year*</string>
+    <string name="reportable_diary_year">Diary Year*</string>
+    <string name="reportable_captcha_prompt">Please enter the answer to the given CAPTCHA question?</string>
+    <string name="reportable_captcha_label">Captcha</string>
+    <string name="reportable_captcha_refresh">Refresh captcha</string>
+    <string name="reportable_download_button">Download judgment</string>
+    <string name="reportable_required_error">Please fill all required fields</string>
     <string name="case_register_success_title">Case registered</string>
     <string name="case_register_success_message">Case successfully registered.</string>
     <string name="case_register_error_title">Case registration failed</string>

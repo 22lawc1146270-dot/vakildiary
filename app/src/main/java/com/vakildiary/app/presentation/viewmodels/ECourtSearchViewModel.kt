@@ -16,6 +16,7 @@ import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCourtComplexesUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtDistrictsUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtEstablishmentsUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtSessionUseCase
+import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCaseDetailsUseCase
 import com.vakildiary.app.domain.usecase.ecourt.SearchECourtUseCase
 import com.vakildiary.app.presentation.model.ECourtCaseDetails
 import com.vakildiary.app.presentation.model.ECourtCaseItem
@@ -41,6 +42,7 @@ class ECourtSearchViewModel @Inject constructor(
     private val fetchEstablishmentsUseCase: FetchECourtEstablishmentsUseCase,
     private val fetchCaseTypesUseCase: FetchECourtCaseTypesUseCase,
     private val fetchCaptchaUseCase: FetchECourtCaptchaUseCase,
+    private val fetchCaseDetailsUseCase: FetchECourtCaseDetailsUseCase,
     private val trackingStore: ECourtTrackingStore,
     private val getTrackedCasesUseCase: GetECourtTrackedCasesUseCase,
     private val upsertTrackedCaseUseCase: UpsertECourtTrackedCaseUseCase
@@ -58,11 +60,10 @@ class ECourtSearchViewModel @Inject constructor(
     val captchaImage: StateFlow<ByteArray?> = _captchaImage.asStateFlow()
 
     private var sessionToken: String? = null
-    private var lastSearchHtml: String? = null
     private var lastSearchForm: ECourtSearchForm? = null
 
-    private val _selectedDetails = MutableStateFlow<ECourtCaseDetails?>(null)
-    val selectedDetails: StateFlow<ECourtCaseDetails?> = _selectedDetails.asStateFlow()
+    private val _detailState = MutableStateFlow<ECourtDetailUiState>(ECourtDetailUiState.Loading)
+    val detailState: StateFlow<ECourtDetailUiState> = _detailState.asStateFlow()
     private val _selectedItem = MutableStateFlow<ECourtCaseItem?>(null)
     val selectedItem: StateFlow<ECourtCaseItem?> = _selectedItem.asStateFlow()
 
@@ -239,7 +240,6 @@ class ECourtSearchViewModel @Inject constructor(
                     result.data.captchaImageUrl?.let { _captchaUrl.value = it }
                     result.data.captchaImageBytes?.let { _captchaImage.value = it }
                     val parsed = ECourtParser.parse(result.data.caseHtml, form)
-                    lastSearchHtml = result.data.caseHtml
                     lastSearchForm = form
                     ECourtSearchUiState.Success(parsed)
                 }
@@ -254,9 +254,20 @@ class ECourtSearchViewModel @Inject constructor(
     }
 
     fun selectDetails(item: ECourtCaseItem) {
-        val raw = lastSearchHtml ?: return
         _selectedItem.value = item
-        _selectedDetails.value = ECourtDetailParser.parse(raw, item)
+        val detailLink = item.detailLink
+        if (detailLink.isNullOrBlank()) {
+            _detailState.value = ECourtDetailUiState.Error("Case detail link missing")
+            return
+        }
+        _detailState.value = ECourtDetailUiState.Loading
+        viewModelScope.launch {
+            val token = sessionToken ?: trackingStore.getLastAppToken().orEmpty()
+            _detailState.value = when (val result = fetchCaseDetailsUseCase(token, detailLink)) {
+                is Result.Success -> ECourtDetailUiState.Success(ECourtDetailParser.parse(result.data, item))
+                is Result.Error -> ECourtDetailUiState.Error(result.message)
+            }
+        }
     }
 
     fun selectTrackedCase(case: ECourtTrackedCase) {
@@ -270,7 +281,7 @@ class ECourtSearchViewModel @Inject constructor(
             courtType = case.courtType,
             clientName = ""
         )
-        _selectedDetails.value = ECourtCaseDetails(
+        val details = ECourtCaseDetails(
             caseTitle = case.caseTitle,
             caseNumber = case.caseNumber,
             courtName = case.courtName,
@@ -286,16 +297,17 @@ class ECourtSearchViewModel @Inject constructor(
             caseHistory = case.caseHistory,
             transferDetails = case.transferDetails
         )
+        _detailState.value = ECourtDetailUiState.Success(details)
     }
 
     fun clearSelection() {
-        _selectedDetails.value = null
         _selectedItem.value = null
+        _detailState.value = ECourtDetailUiState.Loading
     }
 
     fun trackSelectedCase() {
         val item = _selectedItem.value ?: return
-        val details = _selectedDetails.value ?: return
+        val details = (_detailState.value as? ECourtDetailUiState.Success)?.details ?: return
         val form = lastSearchForm ?: return
         val trackId = buildTrackId(item.caseNumber, form.year, form.courtName)
         val tracked = ECourtTrackedCase(
@@ -377,6 +389,12 @@ sealed interface ECourtSearchUiState {
     object Loading : ECourtSearchUiState
     data class Success(val results: List<ECourtCaseItem>) : ECourtSearchUiState
     data class Error(val message: String) : ECourtSearchUiState
+}
+
+sealed interface ECourtDetailUiState {
+    object Loading : ECourtDetailUiState
+    data class Success(val details: ECourtCaseDetails) : ECourtDetailUiState
+    data class Error(val message: String) : ECourtDetailUiState
 }
 
 sealed interface ECourtTrackedUiState {

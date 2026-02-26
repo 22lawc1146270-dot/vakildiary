@@ -21,15 +21,18 @@ data class ECourtCaseDetails(
 
 object ECourtDetailParser {
     fun parse(raw: String, item: ECourtCaseItem): ECourtCaseDetails {
-        val caseDetails = extractSection(raw, "Case Details")
-        val caseStatus = extractSection(raw, "Case Status")
-        val petitionerAdvocate = extractSection(raw, "Petitioner and Advocate")
-        val respondentAdvocate = extractSection(raw, "Respondent and Advocate")
+        val heading = extractById(raw, "chHeading")
+        val caseDetails = extractTableByClass(raw, "case_details_table")
+            .ifEmpty { extractSection(raw, "Case Details") }
+        val caseStatus = extractTableByClass(raw, "case_status_table")
+            .ifEmpty { extractSection(raw, "Case Status") }
+        val petitionerAdvocate = extractListByClass(raw, "petitioner-advocate-list")
+        val respondentAdvocate = extractListByClass(raw, "respondent-advocate-list")
+        val caseHistory = extractTableByClass(raw, "history_table")
+        val transferDetails = extractTableByClass(raw, "transfer_table")
         val acts = extractSection(raw, "Acts")
-        val caseHistory = extractSection(raw, "Case History")
-        val transferDetails = extractSection(raw, "Case Transfer Details within Establishment")
         return ECourtCaseDetails(
-            caseTitle = item.caseTitle,
+            caseTitle = heading.ifBlank { item.caseTitle },
             caseNumber = item.caseNumber,
             courtName = item.courtName,
             courtType = item.courtType,
@@ -56,6 +59,39 @@ object ECourtDetailParser {
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
         ).find(afterHeading) ?: return emptyList()
         return tableToLines(tableMatch.value)
+    }
+
+    private fun extractById(raw: String, id: String): String {
+        val match = Regex(
+            "<[^>]*id=['\"]$id['\"][^>]*>(.*?)</[^>]+>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(raw) ?: return ""
+        return clean(match.groupValues[1])
+    }
+
+    private fun extractTableByClass(raw: String, classToken: String): List<String> {
+        val match = Regex(
+            "<table[^>]*class=['\"][^'\"]*\\b${Regex.escape(classToken)}\\b[^'\"]*['\"][^>]*>.*?</table>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(raw) ?: return emptyList()
+        return tableToLines(match.value)
+    }
+
+    private fun extractListByClass(raw: String, classToken: String): List<String> {
+        val match = Regex(
+            "<ul[^>]*class=['\"][^'\"]*\\b${Regex.escape(classToken)}\\b[^'\"]*['\"][^>]*>(.*?)</ul>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(raw) ?: return emptyList()
+        val body = match.groupValues[1]
+        val items = Regex("<li[^>]*>(.*?)</li>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(body)
+            .map { clean(it.groupValues[1]) }
+            .filter { it.isNotBlank() }
+            .toList()
+        if (items.isNotEmpty()) return items
+        return body.split(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE))
+            .map { clean(it) }
+            .filter { it.isNotBlank() }
     }
 
     private fun tableToLines(tableHtml: String): List<String> {

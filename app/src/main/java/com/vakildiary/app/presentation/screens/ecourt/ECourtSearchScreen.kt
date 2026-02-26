@@ -61,6 +61,7 @@ import com.vakildiary.app.presentation.model.ECourtCaseItem
 import com.vakildiary.app.presentation.model.ECourtSearchForm
 import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.ECourtLookupUiState
+import com.vakildiary.app.presentation.viewmodels.ECourtDetailUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchViewModel
 import com.vakildiary.app.presentation.viewmodels.ECourtTrackedUiState
@@ -78,7 +79,7 @@ fun ECourtSearchScreen(
     val lookupState by viewModel.lookupState.collectAsStateWithLifecycle()
     val captchaImage by viewModel.captchaImage.collectAsStateWithLifecycle()
     val trackedState by viewModel.trackedCases.collectAsStateWithLifecycle()
-    val selectedDetails by viewModel.selectedDetails.collectAsStateWithLifecycle()
+    val detailState by viewModel.detailState.collectAsStateWithLifecycle()
     val selectedItem by viewModel.selectedItem.collectAsStateWithLifecycle()
     val trackEvent by viewModel.trackEvents.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
@@ -343,7 +344,7 @@ fun ECourtSearchScreen(
         }
     }
 
-    if (showDetailSheet && selectedDetails != null && selectedItem != null) {
+    if (showDetailSheet && selectedItem != null) {
         ModalBottomSheet(
             onDismissRequest = {
                 showDetailSheet = false
@@ -351,18 +352,39 @@ fun ECourtSearchScreen(
                 allowTracking = false
             }
         ) {
-            ECourtCaseDetailSheet(
-                details = selectedDetails!!,
-                showTrackButton = allowTracking,
-                onTrack = if (allowTracking) {
-                    {
-                        viewModel.trackSelectedCase()
-                        showDetailSheet = false
+            when (val state = detailState) {
+                ECourtDetailUiState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
                     }
-                } else {
-                    null
                 }
-            )
+                is ECourtDetailUiState.Error -> {
+                    Text(
+                        text = state.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                is ECourtDetailUiState.Success -> {
+                    ECourtCaseDetailSheet(
+                        details = state.details,
+                        showTrackButton = allowTracking,
+                        onTrack = if (allowTracking) {
+                            {
+                                viewModel.trackSelectedCase()
+                                showDetailSheet = false
+                            }
+                        } else {
+                            null
+                        }
+                    )
+                }
+            }
         }
     }
 }

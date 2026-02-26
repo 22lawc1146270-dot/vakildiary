@@ -50,4 +50,9 @@ interface ECourtRepository {
         year: String,
         captcha: String
     ): Result<ECourtSearchResult>
+
+    suspend fun fetchCaseDetails(
+        token: String,
+        detailLink: String
+    ): Result<String>
 }

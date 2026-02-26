@@ -17,12 +17,14 @@ object ECourtParser {
         }
 
         val items = mutableListOf<ECourtCaseItem>()
-        rowRegex.findAll(raw).forEach { match ->
+        val tableHtml = extractTableById(raw, "dispTable") ?: raw
+        rowRegex.findAll(tableHtml).forEach { match ->
             val row = match.groupValues[1]
             val cells = cellRegex.findAll(row).map { clean(it.groupValues[1]) }
-                .filter { it.isNotBlank() }
+                .filter { it.isNotBlank() && !it.equals("View", ignoreCase = true) }
                 .toList()
             if (cells.isEmpty()) return@forEach
+            val detailLink = extractDetailLink(row)
             val startIndex = if (cells.first().matches(Regex("\\d+"))) 1 else 0
             val title = cells.getOrNull(startIndex).orEmpty()
             val parties = cells.getOrNull(startIndex + 1).orEmpty()
@@ -43,7 +45,8 @@ object ECourtParser {
                     stage = stage,
                     courtName = form.courtName,
                     courtType = form.courtType,
-                    clientName = clientName
+                    clientName = clientName,
+                    detailLink = detailLink
                 )
             )
         }
@@ -57,7 +60,8 @@ object ECourtParser {
                     stage = "",
                     courtName = form.courtName,
                     courtType = form.courtType,
-                    clientName = ""
+                    clientName = "",
+                    detailLink = null
                 )
             )
         }
@@ -72,5 +76,45 @@ object ECourtParser {
             .firstOrNull()
             ?.trim()
             .orEmpty()
+    }
+
+    private fun extractTableById(raw: String, id: String): String? {
+        val match = Regex(
+            "<table[^>]*id=['\"]$id['\"][^>]*>(.*?)</table>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(raw) ?: return null
+        return match.groupValues[1]
+    }
+
+    private fun extractDetailLink(row: String): String? {
+        val anchor = Regex("<a[^>]*>", RegexOption.IGNORE_CASE).find(row)?.value ?: return null
+        val href = Regex("href\\s*=\\s*['\"]([^'\"]+)['\"]", RegexOption.IGNORE_CASE)
+            .find(anchor)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("&amp;", "&")
+            ?.trim()
+        if (!href.isNullOrBlank() && !href.equals("#")) {
+            if (!href.startsWith("javascript", ignoreCase = true)) {
+                return href
+            }
+            val urlFromHref = Regex("\\?p=casestatus[^'\"]*", RegexOption.IGNORE_CASE)
+                .find(href)
+                ?.value
+            if (!urlFromHref.isNullOrBlank()) return urlFromHref
+        }
+        val onClick = Regex("onclick\\s*=\\s*['\"]([^'\"]+)['\"]", RegexOption.IGNORE_CASE)
+            .find(anchor)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("&amp;", "&")
+            ?.trim()
+            ?: return null
+        val urlMatch = Regex("['\"]([^'\"]*\\?p=casestatus[^'\"]*)['\"]", RegexOption.IGNORE_CASE)
+            .find(onClick)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("&amp;", "&")
+        return urlMatch
     }
 }
