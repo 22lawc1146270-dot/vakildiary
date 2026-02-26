@@ -8,4 +8,5 @@ interface HearingRepository {
     suspend fun insertHearing(hearing: HearingHistory): Result<Unit>
     fun getHearingsByCaseId(caseId: String): Flow<Result<List<HearingHistory>>>
     fun getHearingById(hearingId: String): Flow<Result<HearingHistory?>>
+    suspend fun deleteHearingsByCaseId(caseId: String): Result<Unit>
 }

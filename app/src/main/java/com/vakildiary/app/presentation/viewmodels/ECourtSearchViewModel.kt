@@ -4,13 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vakildiary.app.core.Result
 import com.vakildiary.app.data.ecourt.ECourtTrackingStore
-import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.ECourtComplexOption
 import com.vakildiary.app.domain.model.ECourtOption
 import com.vakildiary.app.domain.model.ECourtTokenResult
-import com.vakildiary.app.domain.model.displayLabel
-import com.vakildiary.app.domain.usecase.cases.GetCaseByNumberUseCase
-import com.vakildiary.app.domain.usecase.cases.UpdateCaseUseCase
+import com.vakildiary.app.domain.model.ECourtTrackedCase
+import com.vakildiary.app.domain.usecase.ecourt.GetECourtTrackedCasesUseCase
+import com.vakildiary.app.domain.usecase.ecourt.UpsertECourtTrackedCaseUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCaptchaUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCaseTypesUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtCourtComplexesUseCase
@@ -18,8 +17,9 @@ import com.vakildiary.app.domain.usecase.ecourt.FetchECourtDistrictsUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtEstablishmentsUseCase
 import com.vakildiary.app.domain.usecase.ecourt.FetchECourtSessionUseCase
 import com.vakildiary.app.domain.usecase.ecourt.SearchECourtUseCase
-import com.vakildiary.app.notifications.ECourtStatusNotifier
+import com.vakildiary.app.presentation.model.ECourtCaseDetails
 import com.vakildiary.app.presentation.model.ECourtCaseItem
+import com.vakildiary.app.presentation.model.ECourtDetailParser
 import com.vakildiary.app.presentation.model.ECourtParser
 import com.vakildiary.app.presentation.model.ECourtSearchForm
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,10 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
@@ -42,10 +41,9 @@ class ECourtSearchViewModel @Inject constructor(
     private val fetchEstablishmentsUseCase: FetchECourtEstablishmentsUseCase,
     private val fetchCaseTypesUseCase: FetchECourtCaseTypesUseCase,
     private val fetchCaptchaUseCase: FetchECourtCaptchaUseCase,
-    private val getCaseByNumberUseCase: GetCaseByNumberUseCase,
-    private val updateCaseUseCase: UpdateCaseUseCase,
     private val trackingStore: ECourtTrackingStore,
-    private val notifier: ECourtStatusNotifier
+    private val getTrackedCasesUseCase: GetECourtTrackedCasesUseCase,
+    private val upsertTrackedCaseUseCase: UpsertECourtTrackedCaseUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ECourtSearchUiState>(ECourtSearchUiState.Success(emptyList()))
@@ -60,9 +58,28 @@ class ECourtSearchViewModel @Inject constructor(
     val captchaImage: StateFlow<ByteArray?> = _captchaImage.asStateFlow()
 
     private var sessionToken: String? = null
+    private var lastSearchHtml: String? = null
+    private var lastSearchForm: ECourtSearchForm? = null
+
+    private val _selectedDetails = MutableStateFlow<ECourtCaseDetails?>(null)
+    val selectedDetails: StateFlow<ECourtCaseDetails?> = _selectedDetails.asStateFlow()
+    private val _selectedItem = MutableStateFlow<ECourtCaseItem?>(null)
+    val selectedItem: StateFlow<ECourtCaseItem?> = _selectedItem.asStateFlow()
+
+    private val _trackEvents = MutableStateFlow<Result<Unit>?>(null)
+    val trackEvents: StateFlow<Result<Unit>?> = _trackEvents.asStateFlow()
 
     val recentEntries: StateFlow<com.vakildiary.app.domain.model.ECourtRecentEntries> = trackingStore.recentEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.vakildiary.app.domain.model.ECourtRecentEntries(emptyList(), emptyList(), emptyList(), emptyList()))
+
+    val trackedCases: StateFlow<ECourtTrackedUiState> = getTrackedCasesUseCase()
+        .map { result ->
+            when (result) {
+                is Result.Success -> ECourtTrackedUiState.Success(result.data)
+                is Result.Error -> ECourtTrackedUiState.Error(result.message)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ECourtTrackedUiState.Loading)
 
     init {
         loadSession()
@@ -222,7 +239,8 @@ class ECourtSearchViewModel @Inject constructor(
                     result.data.captchaImageUrl?.let { _captchaUrl.value = it }
                     result.data.captchaImageBytes?.let { _captchaImage.value = it }
                     val parsed = ECourtParser.parse(result.data.caseHtml, form)
-                    handleStatusUpdates(parsed, form)
+                    lastSearchHtml = result.data.caseHtml
+                    lastSearchForm = form
                     ECourtSearchUiState.Success(parsed)
                 }
                 is Result.Error -> {
@@ -235,75 +253,77 @@ class ECourtSearchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun handleStatusUpdates(
-        results: List<ECourtCaseItem>,
-        form: ECourtSearchForm
-    ) {
-        for (item in results) {
-            val caseResult = getCaseByNumberUseCase(item.caseNumber)
-            val existing = (caseResult as? Result.Success)?.data ?: continue
-            if (!existing.isECourtTracked) continue
+    fun selectDetails(item: ECourtCaseItem) {
+        val raw = lastSearchHtml ?: return
+        _selectedItem.value = item
+        _selectedDetails.value = ECourtDetailParser.parse(raw, item)
+    }
 
-            val newStage = parseStage(item.stage) ?: existing.caseStage
-            val newNextDate = parseDate(item.nextHearingDate) ?: existing.nextHearingDate
-            val stageChanged = newStage != existing.caseStage
-            val dateChanged = newNextDate != null && newNextDate != existing.nextHearingDate
+    fun selectTrackedCase(case: ECourtTrackedCase) {
+        _selectedItem.value = ECourtCaseItem(
+            caseNumber = case.caseNumber,
+            caseTitle = case.caseTitle,
+            parties = case.parties,
+            nextHearingDate = case.nextHearingDate.orEmpty(),
+            stage = case.stage.orEmpty(),
+            courtName = case.courtName,
+            courtType = case.courtType,
+            clientName = ""
+        )
+        _selectedDetails.value = ECourtCaseDetails(
+            caseTitle = case.caseTitle,
+            caseNumber = case.caseNumber,
+            courtName = case.courtName,
+            courtType = case.courtType,
+            parties = case.parties,
+            stage = case.stage,
+            nextHearingDate = case.nextHearingDate,
+            caseDetails = case.caseDetails,
+            caseStatus = case.caseStatus,
+            petitionerAdvocate = case.petitionerAdvocate,
+            respondentAdvocate = case.respondentAdvocate,
+            acts = case.acts,
+            caseHistory = case.caseHistory,
+            transferDetails = case.transferDetails
+        )
+    }
 
-            if (stageChanged || dateChanged) {
-                updateCaseUseCase(
-                    existing.copy(
-                        caseStage = newStage,
-                        customStage = null,
-                        nextHearingDate = newNextDate
-                    )
-                )
-                trackingStore.save(
-                    existing.caseId,
-                    com.vakildiary.app.domain.model.ECourtTrackingInfo(
-                        stateCode = form.stateCode.trim(),
-                        districtCode = form.districtCode.trim(),
-                        courtCode = form.courtCode.trim(),
-                        establishmentCode = form.establishmentCode.trim().ifBlank { null },
-                        caseTypeCode = form.caseType.trim(),
-                        caseNumber = item.caseNumber,
-                        year = form.year.trim(),
-                        courtName = form.courtName,
-                        courtType = form.courtType,
-                        lastStage = item.stage,
-                        lastNextDate = item.nextHearingDate
-                    )
-                )
-                val message = buildString {
-                    if (stageChanged) {
-                        append(
-                            "Stage: ${existing.caseStage.displayLabel(existing.customStage)} → ${newStage.displayLabel()}"
-                        )
-                    }
-                    if (dateChanged) {
-                        if (isNotEmpty()) append(" • ")
-                        append("Next: ${item.nextHearingDate}")
-                    }
-                }.ifBlank { "Case status updated" }
-                notifier.notifyStatusChange(existing.caseId, existing.caseName, message)
-            } else {
-                trackingStore.save(
-                    existing.caseId,
-                    com.vakildiary.app.domain.model.ECourtTrackingInfo(
-                        stateCode = form.stateCode.trim(),
-                        districtCode = form.districtCode.trim(),
-                        courtCode = form.courtCode.trim(),
-                        establishmentCode = form.establishmentCode.trim().ifBlank { null },
-                        caseTypeCode = form.caseType.trim(),
-                        caseNumber = item.caseNumber,
-                        year = form.year.trim(),
-                        courtName = form.courtName,
-                        courtType = form.courtType,
-                        lastStage = item.stage,
-                        lastNextDate = item.nextHearingDate
-                    )
-                )
-            }
+    fun clearSelection() {
+        _selectedDetails.value = null
+        _selectedItem.value = null
+    }
+
+    fun trackSelectedCase() {
+        val item = _selectedItem.value ?: return
+        val details = _selectedDetails.value ?: return
+        val form = lastSearchForm ?: return
+        val trackId = buildTrackId(item.caseNumber, form.year, form.courtName)
+        val tracked = ECourtTrackedCase(
+            trackId = trackId,
+            caseTitle = item.caseTitle,
+            caseNumber = item.caseNumber,
+            year = form.year,
+            courtName = form.courtName,
+            courtType = form.courtType,
+            parties = item.parties,
+            stage = item.stage.takeIf { it.isNotBlank() },
+            nextHearingDate = item.nextHearingDate.takeIf { it.isNotBlank() },
+            caseDetails = details.caseDetails,
+            caseStatus = details.caseStatus,
+            petitionerAdvocate = details.petitionerAdvocate,
+            respondentAdvocate = details.respondentAdvocate,
+            acts = details.acts,
+            caseHistory = details.caseHistory,
+            transferDetails = details.transferDetails,
+            createdAt = System.currentTimeMillis()
+        )
+        viewModelScope.launch {
+            _trackEvents.value = upsertTrackedCaseUseCase(tracked)
         }
+    }
+
+    fun clearTrackEvent() {
+        _trackEvents.value = null
     }
 
     private fun <T> updateLookupState(
@@ -332,32 +352,9 @@ class ECourtSearchViewModel @Inject constructor(
         return (lookupState.value as? ECourtLookupUiState.Success)?.data?.establishments.orEmpty()
     }
 
-    private fun parseStage(stage: String): CaseStage? {
-        val normalized = stage.lowercase()
-        return when {
-            normalized.contains("disposed") -> CaseStage.DISPOSED
-            normalized.contains("judgment") -> CaseStage.JUDGMENT
-            normalized.contains("argument") -> CaseStage.ARGUMENTS
-            normalized.contains("filing") -> CaseStage.FILING
-            normalized.contains("hearing") -> CaseStage.HEARING
-            else -> null
-        }
-    }
-
-    private fun parseDate(value: String): Long? {
-        if (value.isBlank()) return null
-        return try {
-            val parts = value.split("/")
-            if (parts.size != 3) return null
-            val day = parts[0].toInt()
-            val month = parts[1].toInt()
-            val year = parts[2].toInt()
-            LocalDate.of(year, month, day)
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant().toEpochMilli()
-        } catch (t: Throwable) {
-            null
-        }
+    private fun buildTrackId(caseNumber: String, year: String, courtName: String): String {
+        val raw = "${caseNumber.trim()}_${year.trim()}_${courtName.trim()}".lowercase()
+        return raw.replace(Regex("[^a-z0-9_]+"), "_").trim('_')
     }
 }
 
@@ -380,4 +377,10 @@ sealed interface ECourtSearchUiState {
     object Loading : ECourtSearchUiState
     data class Success(val results: List<ECourtCaseItem>) : ECourtSearchUiState
     data class Error(val message: String) : ECourtSearchUiState
+}
+
+sealed interface ECourtTrackedUiState {
+    object Loading : ECourtTrackedUiState
+    data class Success(val cases: List<ECourtTrackedCase>) : ECourtTrackedUiState
+    data class Error(val message: String) : ECourtTrackedUiState
 }

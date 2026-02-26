@@ -35,6 +35,7 @@ import com.vakildiary.app.presentation.theme.ThemeMode
 import com.vakildiary.app.presentation.theme.LanguageMode
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.components.AppCard
+import com.vakildiary.app.presentation.components.ButtonLabel
 import androidx.compose.ui.res.stringResource
 import com.vakildiary.app.R
 import androidx.core.content.ContextCompat
@@ -120,10 +121,9 @@ fun MoreScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.bgSurfaceSoft),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
+                        ButtonLabel(
                             text = stringResource(id = R.string.sign_out),
-                            style = VakilTheme.typography.labelMedium,
-                            color = VakilTheme.colors.error
+                            style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.error)
                         )
                     }
                 }
@@ -278,7 +278,7 @@ private fun PermissionCard(
                 colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(text = actionLabel, style = VakilTheme.typography.labelMedium)
+                ButtonLabel(text = actionLabel, style = VakilTheme.typography.labelMedium)
             }
         }
     }

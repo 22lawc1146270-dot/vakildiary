@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.presentation.components.ButtonLabel
 import androidx.compose.ui.res.stringResource
 import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.BackupLogEntry
@@ -134,7 +135,7 @@ fun BackupStatusScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = restoreState !is RestoreUiState.Restoring
             ) {
-                Text(
+                ButtonLabel(
                     text = if (restoreState is RestoreUiState.Restoring) {
                         stringResource(id = R.string.backup_restore_in_progress)
                     } else {

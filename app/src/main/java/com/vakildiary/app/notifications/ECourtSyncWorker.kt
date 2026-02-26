@@ -17,6 +17,11 @@ class ECourtSyncWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        // eCourt auto-sync to cases is currently disabled to keep tracking separate.
+        return Result.success()
+    }
+
+    private suspend fun doLegacySync(): Result {
         NotificationChannels.ensureChannels(applicationContext)
 
         val caseDao = WorkerEntryPointAccessors.caseDao(applicationContext)

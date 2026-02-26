@@ -6,6 +6,7 @@ import com.vakildiary.app.core.Result
 import com.vakildiary.app.domain.usecase.cases.GetCaseByIdUseCase
 import com.vakildiary.app.domain.usecase.cases.UpdateCaseUseCase
 import com.vakildiary.app.domain.usecase.cases.ArchiveCaseUseCase
+import com.vakildiary.app.domain.usecase.cases.DeleteCaseUseCase
 import com.vakildiary.app.domain.usecase.hearing.GetHearingHistoryUseCase
 import com.vakildiary.app.domain.usecase.payment.GetPaymentsByCaseUseCase
 import com.vakildiary.app.domain.usecase.task.GetPendingTasksUseCase
@@ -25,6 +26,7 @@ class CaseDetailViewModel @Inject constructor(
     private val getCaseByIdUseCase: GetCaseByIdUseCase,
     private val updateCaseUseCase: UpdateCaseUseCase,
     private val archiveCaseUseCase: ArchiveCaseUseCase,
+    private val deleteCaseUseCase: DeleteCaseUseCase,
     private val getHearingHistoryUseCase: GetHearingHistoryUseCase,
     private val getPendingTasksUseCase: GetPendingTasksUseCase,
     private val getPaymentsByCaseUseCase: GetPaymentsByCaseUseCase,
@@ -62,5 +64,9 @@ class CaseDetailViewModel @Inject constructor(
 
     suspend fun archiveCase(caseId: String): Result<Unit> {
         return archiveCaseUseCase(caseId)
+    }
+
+    suspend fun deleteCase(caseId: String): Result<Unit> {
+        return deleteCaseUseCase(caseId)
     }
 }

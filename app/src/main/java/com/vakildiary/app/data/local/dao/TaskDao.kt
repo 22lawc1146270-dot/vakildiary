@@ -43,4 +43,7 @@ interface TaskDao {
 
     @Delete
     suspend fun deleteTask(task: TaskEntity)
+
+    @Query("DELETE FROM tasks WHERE caseId = :caseId")
+    suspend fun deleteTasksByCaseId(caseId: String)
 }

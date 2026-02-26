@@ -46,14 +46,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.R
 import com.vakildiary.app.core.Result
 import com.vakildiary.app.core.ShareUtils
-import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
 import com.vakildiary.app.presentation.viewmodels.JudgmentDownloadUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSyncState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchViewModel
-import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.util.rememberIsOnline
 import java.time.Year
 
@@ -65,11 +64,10 @@ fun JudgmentSearchScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var year by remember { mutableStateOf(Year.now().value.toString()) }
-    var expanded by remember { mutableStateOf(false) }
-    var selectedCaseId by remember { mutableStateOf<String?>(null) }
     var previewItem by remember { mutableStateOf<JudgmentSearchResult?>(null) }
     var showPreview by remember { mutableStateOf(false) }
     var yearExpanded by remember { mutableStateOf(false) }
+    var hasSearched by remember { mutableStateOf(false) }
     val years = remember {
         val currentYear = Year.now().value
         (currentYear downTo 1950).map { it.toString() }
@@ -77,7 +75,6 @@ fun JudgmentSearchScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
-    val casesState by viewModel.casesState.collectAsStateWithLifecycle()
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
     val context = LocalContext.current
@@ -126,15 +123,6 @@ fun JudgmentSearchScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text(text = stringResource(id = R.string.judgment_search_hint)) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            item {
                 ExposedDropdownMenuBox(
                     expanded = yearExpanded,
                     onExpandedChange = { yearExpanded = !yearExpanded },
@@ -177,29 +165,26 @@ fun JudgmentSearchScreen(
             }
 
             item {
-                when (casesState) {
-                    CasePickerUiState.Loading -> CircularProgressIndicator()
-                    is CasePickerUiState.Error -> Text(text = (casesState as CasePickerUiState.Error).message)
-                    is CasePickerUiState.Success -> {
-                        val cases = (casesState as CasePickerUiState.Success).cases
-                        CaseDropdown(
-                            cases = cases,
-                            selectedCaseId = selectedCaseId,
-                            expanded = expanded,
-                            onExpandedChange = { expanded = it },
-                            onSelected = { selectedCaseId = it }
-                        )
-                    }
-                }
-            }
-
-            item {
                 Button(
-                    onClick = { viewModel.search(query, year) },
+                    onClick = {
+                        hasSearched = true
+                        viewModel.search(query, year)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = isOnline && year.isNotBlank()
                 ) {
-                    Text(text = stringResource(id = R.string.judgment_search_button))
+                    ButtonLabel(text = stringResource(id = R.string.judgment_search_button))
+                }
+            }
+
+            if (hasSearched) {
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text(text = stringResource(id = R.string.judgment_search_hint)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -257,7 +242,7 @@ fun JudgmentSearchScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text(text = stringResource(id = R.string.judgment_open_button))
+                                    ButtonLabel(text = stringResource(id = R.string.judgment_open_button))
                                 }
                                 Button(
                                     onClick = {
@@ -267,7 +252,7 @@ fun JudgmentSearchScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text(text = stringResource(id = R.string.judgment_share_button))
+                                    ButtonLabel(text = stringResource(id = R.string.judgment_share_button))
                                 }
                             }
                         }
@@ -302,11 +287,12 @@ fun JudgmentSearchScreen(
                         JudgmentRow(
                             item = item,
                             canDownload = isOnline,
-                            onDownload = { viewModel.download(item, selectedCaseId) },
+                            onDownload = { viewModel.download(item, year) },
                             onPreview = {
                                 previewItem = item
                                 showPreview = true
-                            }
+                            },
+                            selectedYear = year
                         )
                     }
                 }
@@ -319,7 +305,8 @@ fun JudgmentSearchScreen(
             JudgmentPreview(
                 item = previewItem!!,
                 canDownload = isOnline,
-                onDownload = { viewModel.download(previewItem!!, selectedCaseId) }
+                onDownload = { viewModel.download(previewItem!!, year) },
+                selectedYear = year
             )
         }
     }
@@ -330,17 +317,19 @@ private fun JudgmentRow(
     item: JudgmentSearchResult,
     canDownload: Boolean,
     onDownload: () -> Unit,
-    onPreview: () -> Unit
+    onPreview: () -> Unit,
+    selectedYear: String
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            val heading = remember(item) {
+            val heading = remember(item, selectedYear) {
                 val p = item.petitioner?.trim().orEmpty()
                 val r = item.respondent?.trim().orEmpty()
-                val c = item.caseNumber?.trim().orEmpty()
+                val yearLabel = item.dateOfJudgment?.let { extractYear(it) } ?: selectedYear
+                val citation = item.citation?.trim().orEmpty()
                 
                 buildString {
                     if (p.isNotBlank() && r.isNotBlank()) {
@@ -353,13 +342,19 @@ private fun JudgmentRow(
                         append(r)
                     }
                     
-                    if (c.isNotBlank()) {
-                        if (isNotEmpty()) append(" ")
-                        append(c)
-                    }
-                    
                     if (isEmpty()) {
                         append(item.title)
+                    }
+
+                    if (yearLabel.isNotBlank()) {
+                        append(" (")
+                        append(yearLabel)
+                        append(")")
+                    }
+
+                    if (citation.isNotBlank()) {
+                        append(" ")
+                        append(citation)
                     }
                 }
             }
@@ -376,22 +371,26 @@ private fun JudgmentRow(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            
+
             item.dateOfJudgment?.let { date ->
                 Text(
                     text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            
-            if (!item.citation.isNullOrBlank() || !item.bench.isNullOrBlank()) {
-                val meta = listOfNotNull(
-                    item.citation?.takeIf { it.isNotBlank() },
-                    item.bench?.takeIf { it.isNotBlank() }
-                ).joinToString(" • ")
-                if (meta.isNotBlank()) {
-                    Text(text = meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-                }
+
+            if (!item.bench.isNullOrBlank()) {
+                Text(
+                    text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (!item.caseNumber.isNullOrBlank()) {
+                Text(
+                    text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
             
             Row(
@@ -402,14 +401,14 @@ private fun JudgmentRow(
                     onClick = onPreview,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(text = stringResource(id = R.string.judgment_preview_button))
+                    ButtonLabel(text = stringResource(id = R.string.judgment_preview_button))
                 }
                 Button(
                     onClick = onDownload,
                     modifier = Modifier.weight(1f),
                     enabled = canDownload
                 ) {
-                    Text(text = stringResource(id = R.string.judgment_download_button))
+                    ButtonLabel(text = stringResource(id = R.string.judgment_download_button))
                 }
             }
         }
@@ -420,7 +419,8 @@ private fun JudgmentRow(
 private fun JudgmentPreview(
     item: JudgmentSearchResult,
     canDownload: Boolean,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    selectedYear: String
 ) {
         Column(
             modifier = Modifier
@@ -428,10 +428,11 @@ private fun JudgmentPreview(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val heading = remember(item) {
+            val heading = remember(item, selectedYear) {
                 val p = item.petitioner?.trim().orEmpty()
                 val r = item.respondent?.trim().orEmpty()
-                val c = item.caseNumber?.trim().orEmpty()
+                val yearLabel = item.dateOfJudgment?.let { extractYear(it) } ?: selectedYear
+                val citation = item.citation?.trim().orEmpty()
                 
                 buildString {
                     if (p.isNotBlank() && r.isNotBlank()) {
@@ -444,13 +445,19 @@ private fun JudgmentPreview(
                         append(r)
                     }
                     
-                    if (c.isNotBlank()) {
-                        if (isNotEmpty()) append(" ")
-                        append(c)
-                    }
-                    
                     if (isEmpty()) {
                         append(item.title)
+                    }
+
+                    if (yearLabel.isNotBlank()) {
+                        append(" (")
+                        append(yearLabel)
+                        append(")")
+                    }
+
+                    if (citation.isNotBlank()) {
+                        append(" ")
+                        append(citation)
                     }
                 }
             }
@@ -467,66 +474,18 @@ private fun JudgmentPreview(
             item.dateOfJudgment?.let { date ->
                 Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
             }
-            if (!item.citation.isNullOrBlank()) {
-                Text(text = "${stringResource(id = R.string.judgment_citation)}: ${item.citation}")
-            }
             if (!item.bench.isNullOrBlank()) {
                 Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
+            }
+            if (!item.caseNumber.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}")
             }
         Button(
             onClick = onDownload,
             modifier = Modifier.fillMaxWidth(),
             enabled = canDownload
         ) {
-            Text(text = stringResource(id = R.string.judgment_download_button))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CaseDropdown(
-    cases: List<Case>,
-    selectedCaseId: String?,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onSelected: (String?) -> Unit
-) {
-    val selected = cases.firstOrNull { it.caseId == selectedCaseId }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { onExpandedChange(!expanded) },
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = selected?.let { "${it.caseName} • ${it.caseNumber}" }
-                ?: stringResource(id = R.string.judgment_no_case),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(text = stringResource(id = R.string.judgment_attach_case)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .fillMaxWidth()
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) }
-        ) {
-            DropdownMenuItem(
-                text = { Text(text = stringResource(id = R.string.judgment_no_case_option)) },
-                onClick = { onSelected(null); onExpandedChange(false) }
-            )
-            cases.forEach { caseItem ->
-                DropdownMenuItem(
-                    text = { Text(text = "${caseItem.caseName} • ${caseItem.caseNumber}") },
-                    onClick = {
-                        onSelected(caseItem.caseId)
-                        onExpandedChange(false)
-                    }
-                )
-            }
+            ButtonLabel(text = stringResource(id = R.string.judgment_download_button))
         }
     }
 }
@@ -536,6 +495,14 @@ private fun formatDate(epochMillis: Long): String {
         .atZone(java.time.ZoneId.systemDefault())
         .toLocalDate()
     return date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+}
+
+private fun extractYear(epochMillis: Long): String {
+    return java.time.Instant.ofEpochMilli(epochMillis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+        .year
+        .toString()
 }
 
 private enum class JudgmentFileAction { OPEN, SHARE }

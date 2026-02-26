@@ -28,6 +28,7 @@ import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
 import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.components.AppCard
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.components.UrgencyBadge
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.CaseListViewModel
@@ -316,7 +317,7 @@ private fun FilterBottomSheet(
                 colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Apply Filters", style = VakilTheme.typography.labelMedium)
+                ButtonLabel(text = "Apply Filters", style = VakilTheme.typography.labelMedium)
             }
         }
     }
@@ -367,7 +368,7 @@ private fun NoCasesPlaceholder(onAddCase: () -> Unit) {
                 onClick = onAddCase,
                 colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary)
             ) {
-                Text("Add Your First Case")
+                ButtonLabel(text = "Add Your First Case")
             }
         }
     }
@@ -379,7 +380,7 @@ private fun ErrorPlaceholder(message: String, onRetry: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(VakilTheme.spacing.lg)) {
             Text(text = message, color = VakilTheme.colors.error, style = VakilTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(VakilTheme.spacing.md))
-            Button(onClick = onRetry) { Text("Retry") }
+            Button(onClick = onRetry) { ButtonLabel(text = "Retry") }
         }
     }
 }

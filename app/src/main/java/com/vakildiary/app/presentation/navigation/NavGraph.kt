@@ -22,6 +22,7 @@ import com.vakildiary.app.presentation.screens.tasks.OverdueTasksScreen
 import com.vakildiary.app.presentation.screens.fees.AddPaymentScreen
 import com.vakildiary.app.presentation.screens.ecourt.ECourtSearchScreen
 import com.vakildiary.app.presentation.screens.judgments.JudgmentSearchScreen
+import com.vakildiary.app.presentation.screens.judgments.ReportableJudgmentScreen
 import com.vakildiary.app.presentation.screens.meetings.AddMeetingScreen
 import com.vakildiary.app.presentation.screens.meetings.MeetingListScreen
 import com.vakildiary.app.presentation.screens.meetings.UpcomingMeetingsScreen
@@ -93,7 +94,13 @@ fun AppNavGraph(
                 prefillEcourtEstablishmentCode = ecourtEstablishment,
                 prefillEcourtCaseTypeCode = ecourtCaseType,
                 prefillEcourtYear = ecourtYear,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onRegistered = {
+                    val popped = navController.popBackStack(Screen.CaseList.route, false)
+                    if (!popped) {
+                        navController.navigate(Screen.CaseList.route)
+                    }
+                }
             )
         }
         composable(
@@ -146,7 +153,8 @@ fun AppNavGraph(
                 onAddPayment = { navController.navigate(Screen.AddPayment.createRoute(caseId)) },
                 onAddDocument = { navController.navigate(Screen.CaseDocuments.createRoute(caseId)) },
                 onEdit = { navController.navigate(Screen.EditCase.createRoute(caseId)) },
-                onAddMeeting = { navController.navigate(Screen.AddMeeting.createRoute(caseId)) }
+                onAddMeeting = { navController.navigate(Screen.AddMeeting.createRoute(caseId)) },
+                onCaseDeleted = { navController.popBackStack() }
             )
         }
         composable(
@@ -209,37 +217,46 @@ fun AppNavGraph(
             )
         }
         composable(Screen.Documents.route) {
-            DocumentListScreen()
+            DocumentListScreen(
+                onDownloadReportable = { judgmentId, caseNumber, year ->
+                    navController.navigate(
+                        Screen.ReportableJudgment.createRoute(
+                            judgmentId = judgmentId,
+                            caseNumber = caseNumber,
+                            year = year
+                        )
+                    )
+                }
+            )
         }
         composable(Screen.OverdueTasks.route) {
             OverdueTasksScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.ECourtSearch.route) {
             ECourtSearchScreen(
-                onBack = { navController.popBackStack() },
-                onImport = { item, form ->
-                    val stage = parseStage(item.stage)
-                    val route = Screen.AddCase.createRoute(
-                        caseName = item.caseTitle,
-                        caseNumber = item.caseNumber,
-                        courtName = item.courtName,
-                        clientName = item.clientName,
-                        courtType = item.courtType,
-                        caseType = CaseType.OTHER,
-                        caseStage = stage,
-                        ecourtStateCode = form.stateCode,
-                        ecourtDistrictCode = form.districtCode,
-                        ecourtCourtCode = form.courtCode,
-                        ecourtEstablishmentCode = form.establishmentCode,
-                        ecourtCaseTypeCode = form.caseType,
-                        ecourtYear = form.year
-                    )
-                    navController.navigate(route)
-                }
+                onBack = { navController.popBackStack() }
             )
         }
         composable(Screen.JudgmentSearch.route) {
             JudgmentSearchScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Screen.ReportableJudgment.route,
+            arguments = listOf(
+                navArgument(Screen.ReportableJudgment.ARG_JUDGMENT_ID) { defaultValue = "" },
+                navArgument(Screen.ReportableJudgment.ARG_CASE_NUMBER) { defaultValue = ""; nullable = true },
+                navArgument(Screen.ReportableJudgment.ARG_YEAR) { defaultValue = ""; nullable = true }
+            )
+        ) { entry ->
+            val judgmentId = entry.arguments?.getString(Screen.ReportableJudgment.ARG_JUDGMENT_ID).orEmpty()
+            val caseNumber = entry.arguments?.getString(Screen.ReportableJudgment.ARG_CASE_NUMBER)
+            val year = entry.arguments?.getString(Screen.ReportableJudgment.ARG_YEAR)
+            ReportableJudgmentScreen(
+                judgmentId = judgmentId,
+                caseNumber = caseNumber,
+                year = year,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Screen.More.route) {
             MoreScreen(
@@ -258,15 +275,4 @@ fun AppNavGraph(
 private fun <T : Enum<T>> parseEnum(value: String?, values: Array<T>): T? {
     if (value.isNullOrBlank()) return null
     return values.firstOrNull { it.name == value }
-}
-
-private fun parseStage(value: String?): CaseStage {
-    val normalized = value?.lowercase().orEmpty()
-    return when {
-        normalized.contains("disposed") -> CaseStage.DISPOSED
-        normalized.contains("judgment") -> CaseStage.JUDGMENT
-        normalized.contains("argument") -> CaseStage.ARGUMENTS
-        normalized.contains("filing") -> CaseStage.FILING
-        else -> CaseStage.HEARING
-    }
 }

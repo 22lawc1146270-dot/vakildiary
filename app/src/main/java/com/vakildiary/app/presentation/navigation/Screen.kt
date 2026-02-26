@@ -93,6 +93,22 @@ sealed class Screen(val route: String) {
     object UpcomingMeetings : Screen("upcoming_meetings")
     object ECourtSearch : Screen("ecourt_search")
     object JudgmentSearch : Screen("judgment_search")
+    object ReportableJudgment : Screen(
+        "reportable_judgment?judgmentId={judgmentId}&caseNumber={caseNumber}&year={year}"
+    ) {
+        const val ARG_JUDGMENT_ID = "judgmentId"
+        const val ARG_CASE_NUMBER = "caseNumber"
+        const val ARG_YEAR = "year"
+
+        fun createRoute(
+            judgmentId: String,
+            caseNumber: String? = null,
+            year: String? = null
+        ): String {
+            return "reportable_judgment?judgmentId=${encode(judgmentId)}" +
+                "&caseNumber=${encode(caseNumber)}&year=${encode(year)}"
+        }
+    }
     object Dashboard : Screen("dashboard")
     object Calendar : Screen("calendar")
     object Documents : Screen("documents")

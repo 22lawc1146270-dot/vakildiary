@@ -23,6 +23,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.CalendarViewModel
 import com.vakildiary.app.presentation.viewmodels.TodayDocketViewModel
 import com.vakildiary.app.presentation.screens.docket.HearingOutcomeDialog
@@ -310,7 +311,7 @@ private fun DayAgendaPanel(
                 color = VakilTheme.colors.accentPrimary
             )
             TextButton(onClick = onAddTask) {
-                Text(text = "Add Task")
+                ButtonLabel(text = "Add Task")
             }
         }
 

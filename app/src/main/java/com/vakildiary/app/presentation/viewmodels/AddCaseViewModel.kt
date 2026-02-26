@@ -188,6 +188,10 @@ class AddCaseViewModel @Inject constructor(
         }
     }
 
+    fun resetState() {
+        _uiState.value = AddCaseUiState.Success(isSaved = false)
+    }
+
     private fun updateForm(block: (AddCaseFormState) -> AddCaseFormState) {
         _formState.value = block(_formState.value)
     }

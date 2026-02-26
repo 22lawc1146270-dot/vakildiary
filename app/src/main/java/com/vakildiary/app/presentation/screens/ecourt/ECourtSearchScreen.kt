@@ -55,11 +55,15 @@ import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.domain.model.ECourtComplexOption
 import com.vakildiary.app.domain.model.ECourtOption
 import com.vakildiary.app.R
+import com.vakildiary.app.domain.model.ECourtTrackedCase
+import com.vakildiary.app.presentation.model.ECourtCaseDetails
 import com.vakildiary.app.presentation.model.ECourtCaseItem
 import com.vakildiary.app.presentation.model.ECourtSearchForm
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.ECourtLookupUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchUiState
 import com.vakildiary.app.presentation.viewmodels.ECourtSearchViewModel
+import com.vakildiary.app.presentation.viewmodels.ECourtTrackedUiState
 import com.vakildiary.app.presentation.util.rememberIsOnline
 import java.time.Year
 
@@ -67,15 +71,21 @@ import java.time.Year
 @Composable
 fun ECourtSearchScreen(
     onBack: () -> Unit,
-    onImport: (ECourtCaseItem, ECourtSearchForm) -> Unit,
     viewModel: ECourtSearchViewModel = hiltViewModel()
 ) {
     var form by remember { mutableStateOf(ECourtSearchForm()) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lookupState by viewModel.lookupState.collectAsStateWithLifecycle()
     val captchaImage by viewModel.captchaImage.collectAsStateWithLifecycle()
+    val trackedState by viewModel.trackedCases.collectAsStateWithLifecycle()
+    val selectedDetails by viewModel.selectedDetails.collectAsStateWithLifecycle()
+    val selectedItem by viewModel.selectedItem.collectAsStateWithLifecycle()
+    val trackEvent by viewModel.trackEvents.collectAsStateWithLifecycle()
     val isOnline by rememberIsOnline()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showResultsSheet by remember { mutableStateOf(false) }
+    var showDetailSheet by remember { mutableStateOf(false) }
+    var allowTracking by remember { mutableStateOf(false) }
     val years = remember {
         val currentYear = Year.now().value
         (currentYear downTo currentYear - 30).map { it.toString() }
@@ -91,6 +101,25 @@ fun ECourtSearchScreen(
         showResultsSheet = when (uiState) {
             is ECourtSearchUiState.Success -> (uiState as ECourtSearchUiState.Success).results.isNotEmpty()
             else -> false
+        }
+    }
+
+    LaunchedEffect(trackEvent) {
+        val event = trackEvent
+        if (event is com.vakildiary.app.core.Result.Success) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.ecourt_track_success),
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            viewModel.clearTrackEvent()
+        } else if (event is com.vakildiary.app.core.Result.Error) {
+            android.widget.Toast.makeText(
+                context,
+                event.message,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            viewModel.clearTrackEvent()
         }
     }
 
@@ -248,7 +277,7 @@ fun ECourtSearchScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = isOnline
             ) {
-                Text(text = stringResource(id = R.string.ecourt_search_button))
+                ButtonLabel(text = stringResource(id = R.string.ecourt_search_button))
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -257,6 +286,33 @@ fun ECourtSearchScreen(
                 ECourtSearchUiState.Loading -> CircularProgressIndicator()
                 is ECourtSearchUiState.Error -> Text(text = state.message, color = MaterialTheme.colorScheme.error)
                 is ECourtSearchUiState.Success -> Unit
+            }
+
+            when (trackedState) {
+                ECourtTrackedUiState.Loading -> Unit
+                is ECourtTrackedUiState.Error -> Text(
+                    text = (trackedState as ECourtTrackedUiState.Error).message,
+                    color = MaterialTheme.colorScheme.error
+                )
+                is ECourtTrackedUiState.Success -> {
+                    val trackedCases = (trackedState as ECourtTrackedUiState.Success).cases
+                    if (trackedCases.isNotEmpty()) {
+                        Text(
+                            text = stringResource(id = R.string.ecourt_tracked_cases),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        trackedCases.forEach { tracked ->
+                            TrackedCaseCard(
+                                caseItem = tracked,
+                                onView = {
+                                    viewModel.selectTrackedCase(tracked)
+                                    allowTracking = false
+                                    showDetailSheet = true
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -276,13 +332,37 @@ fun ECourtSearchScreen(
                 items(results) { item ->
                     ResultCard(
                         item = item,
-                        onImport = {
-                            onImport(item, form)
-                            showResultsSheet = false
+                        onView = {
+                            viewModel.selectDetails(item)
+                            allowTracking = true
+                            showDetailSheet = true
                         }
                     )
                 }
             }
+        }
+    }
+
+    if (showDetailSheet && selectedDetails != null && selectedItem != null) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showDetailSheet = false
+                viewModel.clearSelection()
+                allowTracking = false
+            }
+        ) {
+            ECourtCaseDetailSheet(
+                details = selectedDetails!!,
+                showTrackButton = allowTracking,
+                onTrack = if (allowTracking) {
+                    {
+                        viewModel.trackSelectedCase()
+                        showDetailSheet = false
+                    }
+                } else {
+                    null
+                }
+            )
         }
     }
 }
@@ -481,7 +561,7 @@ private fun OfflineBanner(onRetry: () -> Unit) {
                 )
             }
             Button(onClick = onRetry) {
-                Text(text = stringResource(id = R.string.ecourt_retry))
+                ButtonLabel(text = stringResource(id = R.string.ecourt_retry))
             }
         }
     }
@@ -541,7 +621,7 @@ private fun CaptchaField(
 @Composable
 private fun ResultCard(
     item: ECourtCaseItem,
-    onImport: () -> Unit
+    onView: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -559,10 +639,100 @@ private fun ResultCard(
                 Text(text = "${stringResource(id = R.string.ecourt_stage)}: ${item.stage}")
             }
             Button(
-                onClick = onImport,
+                onClick = onView,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = stringResource(id = R.string.ecourt_import_case))
+                ButtonLabel(text = stringResource(id = R.string.ecourt_view_case))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackedCaseCard(
+    caseItem: ECourtTrackedCase,
+    onView: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(text = caseItem.caseTitle, style = MaterialTheme.typography.titleMedium)
+            if (caseItem.parties.isNotBlank()) {
+                Text(text = caseItem.parties, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (!caseItem.nextHearingDate.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.ecourt_next_hearing)}: ${caseItem.nextHearingDate}")
+            }
+            if (!caseItem.stage.isNullOrBlank()) {
+                Text(text = "${stringResource(id = R.string.ecourt_stage)}: ${caseItem.stage}")
+            }
+            Button(
+                onClick = onView,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ButtonLabel(text = stringResource(id = R.string.ecourt_view_case))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ECourtCaseDetailSheet(
+    details: ECourtCaseDetails,
+    showTrackButton: Boolean,
+    onTrack: (() -> Unit)?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(text = details.caseTitle, style = MaterialTheme.typography.titleLarge)
+        Text(text = "${stringResource(id = R.string.ecourt_case_number)}: ${details.caseNumber}")
+        if (details.parties.isNotBlank()) {
+            Text(text = details.parties, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (!details.stage.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.ecourt_stage)}: ${details.stage}")
+        }
+        if (!details.nextHearingDate.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.ecourt_next_hearing)}: ${details.nextHearingDate}")
+        }
+
+        DetailSection(title = stringResource(id = R.string.ecourt_case_details), lines = details.caseDetails)
+        DetailSection(title = stringResource(id = R.string.ecourt_case_status), lines = details.caseStatus)
+        DetailSection(title = stringResource(id = R.string.ecourt_petitioner_advocate), lines = details.petitionerAdvocate)
+        DetailSection(title = stringResource(id = R.string.ecourt_respondent_advocate), lines = details.respondentAdvocate)
+        DetailSection(title = stringResource(id = R.string.ecourt_acts), lines = details.acts)
+        DetailSection(title = stringResource(id = R.string.ecourt_case_history), lines = details.caseHistory)
+        DetailSection(
+            title = stringResource(id = R.string.ecourt_case_transfer),
+            lines = details.transferDetails
+        )
+
+        if (showTrackButton && onTrack != null) {
+            Button(
+                onClick = onTrack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ButtonLabel(text = stringResource(id = R.string.ecourt_track_case))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSection(title: String, lines: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text = title, style = MaterialTheme.typography.titleMedium)
+        if (lines.isEmpty()) {
+            Text(text = stringResource(id = R.string.ecourt_no_data), style = MaterialTheme.typography.bodySmall)
+        } else {
+            lines.forEach { line ->
+                Text(text = line, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

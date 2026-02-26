@@ -5,20 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.vakildiary.app.core.Result
 import com.vakildiary.app.domain.model.Document
 import com.vakildiary.app.domain.repository.JudgmentSearchResult
-import com.vakildiary.app.domain.usecase.cases.GetAllCasesUseCase
 import com.vakildiary.app.domain.usecase.documents.PrepareDocumentForViewingUseCase
 import com.vakildiary.app.domain.usecase.judgment.SearchJudgmentsUseCase
 import com.vakildiary.app.domain.usecase.judgment.DownloadJudgmentUseCase
-import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -27,8 +21,7 @@ import javax.inject.Inject
 class JudgmentSearchViewModel @Inject constructor(
     private val searchJudgmentsUseCase: SearchJudgmentsUseCase,
     private val downloadJudgmentUseCase: DownloadJudgmentUseCase,
-    private val prepareDocumentForViewingUseCase: PrepareDocumentForViewingUseCase,
-    getAllCasesUseCase: GetAllCasesUseCase
+    private val prepareDocumentForViewingUseCase: PrepareDocumentForViewingUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<JudgmentSearchUiState>(JudgmentSearchUiState.Success(emptyList()))
@@ -42,16 +35,6 @@ class JudgmentSearchViewModel @Inject constructor(
 
     private val _fileEvents = MutableSharedFlow<Result<File>>(extraBufferCapacity = 1)
     val fileEvents = _fileEvents
-
-    val casesState: StateFlow<CasePickerUiState> = getAllCasesUseCase()
-        .map { result ->
-            when (result) {
-                is Result.Success -> CasePickerUiState.Success(result.data)
-                is Result.Error -> CasePickerUiState.Error(result.message)
-            }
-        }
-        .catch { emit(CasePickerUiState.Error("Failed to load cases")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CasePickerUiState.Loading)
 
     fun search(query: String, year: String) {
         if (year.isBlank()) {
@@ -73,10 +56,10 @@ class JudgmentSearchViewModel @Inject constructor(
         }
     }
 
-    fun download(item: JudgmentSearchResult, caseId: String?) {
+    fun download(item: JudgmentSearchResult, year: String) {
         viewModelScope.launch {
             _downloadState.value = JudgmentDownloadUiState.Loading
-            _downloadState.value = when (val result = downloadJudgmentUseCase(item, caseId)) {
+            _downloadState.value = when (val result = downloadJudgmentUseCase(item, year)) {
                 is Result.Success -> JudgmentDownloadUiState.Success("Judgment downloaded", result.data)
                 is Result.Error -> JudgmentDownloadUiState.Error(result.message)
             }

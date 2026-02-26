@@ -52,4 +52,7 @@ interface CaseDao {
 
     @Query("UPDATE cases SET isArchived = 1 WHERE caseId = :caseId")
     suspend fun archiveCase(caseId: String)
+
+    @Query("DELETE FROM cases WHERE caseId = :caseId")
+    suspend fun deleteCase(caseId: String)
 }

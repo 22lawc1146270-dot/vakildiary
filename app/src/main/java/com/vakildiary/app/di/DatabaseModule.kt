@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.vakildiary.app.data.local.VakilDiaryDatabase
 import com.vakildiary.app.data.local.dao.CaseDao
 import com.vakildiary.app.data.local.dao.DocumentDao
+import com.vakildiary.app.data.local.dao.ECourtTrackedCaseDao
 import com.vakildiary.app.data.local.dao.HearingHistoryDao
 import com.vakildiary.app.data.local.dao.JudgmentMetadataDao
 import com.vakildiary.app.data.local.dao.MeetingDao
@@ -36,7 +37,8 @@ object DatabaseModule {
                 VakilDiaryDatabase.MIGRATION_1_2,
                 VakilDiaryDatabase.MIGRATION_2_3,
                 VakilDiaryDatabase.MIGRATION_3_4,
-                VakilDiaryDatabase.MIGRATION_4_5
+                VakilDiaryDatabase.MIGRATION_4_5,
+                VakilDiaryDatabase.MIGRATION_5_6
             )
             .build()
     }
@@ -63,4 +65,8 @@ object DatabaseModule {
     @Provides
     fun provideJudgmentMetadataDao(database: VakilDiaryDatabase): JudgmentMetadataDao =
         database.judgmentMetadataDao()
+
+    @Provides
+    fun provideECourtTrackedCaseDao(database: VakilDiaryDatabase): ECourtTrackedCaseDao =
+        database.ecourtTrackedCaseDao()
 }

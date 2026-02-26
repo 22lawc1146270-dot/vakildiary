@@ -24,4 +24,7 @@ interface MeetingDao {
 
     @Delete
     suspend fun deleteMeeting(meeting: MeetingEntity)
+
+    @Query("DELETE FROM meetings WHERE caseId = :caseId")
+    suspend fun deleteMeetingsByCaseId(caseId: String)
 }

@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.PaymentMode
 import com.vakildiary.app.presentation.viewmodels.AddPaymentViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddPaymentUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -148,7 +149,7 @@ fun AddPaymentScreen(
             ) {
                 Icon(imageVector = Icons.Default.AttachFile, contentDescription = "Attach receipt")
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = if (formState.receiptPath.isBlank()) "Attach Receipt Photo" else "Change Receipt Photo")
+                ButtonLabel(text = if (formState.receiptPath.isBlank()) "Attach Receipt Photo" else "Change Receipt Photo")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -159,7 +160,7 @@ fun AddPaymentScreen(
                 enabled = formState.isValid() && uiState !is AddPaymentUiState.Loading,
                 contentPadding = PaddingValues(vertical = 14.dp)
             ) {
-                Text(text = if (uiState is AddPaymentUiState.Loading) "Saving..." else "Save")
+                ButtonLabel(text = if (uiState is AddPaymentUiState.Loading) "Saving..." else "Save")
             }
         }
     }
@@ -175,10 +176,10 @@ fun AddPaymentScreen(
                         viewModel.onDateChanged(selected)
                     }
                     showDatePicker = false
-                }) { Text(text = "OK") }
+                }) { ButtonLabel(text = "OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { ButtonLabel(text = "Cancel") }
             }
         ) {
             DatePicker(state = datePickerState)

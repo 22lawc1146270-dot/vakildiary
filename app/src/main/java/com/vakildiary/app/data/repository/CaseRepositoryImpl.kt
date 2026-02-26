@@ -65,6 +65,15 @@ class CaseRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteCase(caseId: String): Result<Unit> {
+        return try {
+            caseDao.deleteCase(caseId)
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to delete case", throwable = t)
+        }
+    }
+
     private fun Case.toEntity(): CaseEntity =
         CaseEntity(
             caseId = caseId,

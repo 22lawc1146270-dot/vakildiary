@@ -239,7 +239,7 @@ createdAt	Long (epoch) — Record creation timestamp
     • Search bar with real-time filtering across Case Name, Number, Client, Opposite Party
     • Case Detail screen: full case info, next hearing chip, quick action buttons (Add Hearing, Add Task, Add Payment, Add Document)
     • Case History tab: timeline of all past hearings with date, outcome, and order details
-    • Edit and Archive case (soft delete — not permanent)
+    • Edit and delete case with choice of archive (soft delete) or permanent delete (removes related data)
 
 5.2 Hearing & Calendar Module
     • Add Hearing Date screen: select case, date/time, purpose, set custom reminder

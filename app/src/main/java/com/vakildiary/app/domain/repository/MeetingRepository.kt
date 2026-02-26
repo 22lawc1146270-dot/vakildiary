@@ -9,4 +9,5 @@ interface MeetingRepository {
     fun getMeetingsByCaseId(caseId: String): Flow<Result<List<Meeting>>>
     fun getUpcomingMeetings(now: Long): Flow<Result<List<Meeting>>>
     suspend fun deleteMeeting(meeting: Meeting): Result<Unit>
+    suspend fun deleteMeetingsByCaseId(caseId: String): Result<Unit>
 }

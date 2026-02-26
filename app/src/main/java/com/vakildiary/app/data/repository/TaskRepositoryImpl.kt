@@ -70,6 +70,15 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteTasksByCaseId(caseId: String): Result<Unit> {
+        return try {
+            taskDao.deleteTasksByCaseId(caseId)
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to delete tasks", throwable = t)
+        }
+    }
+
     private fun Task.toEntity(): TaskEntity =
         TaskEntity(
             taskId = taskId,

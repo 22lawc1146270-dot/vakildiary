@@ -71,6 +71,7 @@ import com.vakildiary.app.presentation.navigation.Screen
 import com.vakildiary.app.presentation.screens.auth.SignInScreen
 import com.vakildiary.app.presentation.screens.docket.TodayDocketBottomSheet
 import com.vakildiary.app.presentation.screens.docket.HearingOutcomeDialog
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.theme.VakilDiaryTheme
 import com.vakildiary.app.presentation.theme.ThemeMode
 import com.vakildiary.app.presentation.theme.LanguageMode
@@ -420,19 +421,22 @@ class MainActivity : ComponentActivity() {
                                             onClick = { restoreViewModel.restoreNow() },
                                             enabled = restoreUiState !is RestoreUiState.Restoring
                                         ) {
-                                            Text(
+                                            ButtonLabel(
                                                 text = if (restoreUiState is RestoreUiState.Restoring) {
                                                     "Restoring..."
                                                 } else {
                                                     "Restore"
                                                 },
-                                                color = VakilTheme.colors.accentPrimary
+                                                style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.accentPrimary)
                                             )
                                         }
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { restoreViewModel.skipRestore() }) {
-                                            Text(text = "Not now", color = VakilTheme.colors.textSecondary)
+                                            ButtonLabel(
+                                                text = "Not now",
+                                                style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
+                                            )
                                         }
                                     },
                                     containerColor = VakilTheme.colors.bgElevated,
@@ -528,7 +532,7 @@ private fun AppLockScreen(
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(
+                ButtonLabel(
                     text = if (isAuthenticating) "Authenticating..." else "Unlock",
                     style = VakilTheme.typography.labelMedium
                 )

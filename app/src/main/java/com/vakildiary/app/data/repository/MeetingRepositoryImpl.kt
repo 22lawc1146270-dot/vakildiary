@@ -42,6 +42,15 @@ class MeetingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteMeetingsByCaseId(caseId: String): Result<Unit> {
+        return try {
+            meetingDao.deleteMeetingsByCaseId(caseId)
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to delete meetings", throwable = t)
+        }
+    }
+
     private fun Meeting.toEntity(): MeetingEntity =
         MeetingEntity(
             meetingId = meetingId,

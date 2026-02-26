@@ -36,6 +36,15 @@ class PaymentRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deletePaymentsByCaseId(caseId: String): Result<Unit> {
+        return try {
+            paymentDao.deletePaymentsByCaseId(caseId)
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to delete payments", throwable = t)
+        }
+    }
+
     private fun Payment.toEntity(): PaymentEntity =
         PaymentEntity(
             paymentId = paymentId,

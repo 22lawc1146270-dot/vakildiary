@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.notifications.NotificationScheduler
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddHearingViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddHearingUiState
@@ -179,10 +180,9 @@ fun AddHearingScreen(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(VakilTheme.spacing.md)
             ) {
-                Text(
+                ButtonLabel(
                     text = "Save Hearing Schedule",
-                    style = VakilTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
+                    style = VakilTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
         }
@@ -196,10 +196,20 @@ fun AddHearingScreen(
                 TextButton(onClick = {
                     dateMillis = datePickerState.selectedDateMillis
                     showDatePicker = false
-                }) { Text(text = "Confirm", color = VakilTheme.colors.accentPrimary) }
+                }) {
+                    ButtonLabel(
+                        text = "Confirm",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.accentPrimary)
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
+                TextButton(onClick = { showDatePicker = false }) {
+                    ButtonLabel(
+                        text = "Cancel",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
+                    )
+                }
             },
             colors = DatePickerDefaults.colors(
                 containerColor = VakilTheme.colors.bgElevated

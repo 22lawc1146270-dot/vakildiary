@@ -24,6 +24,7 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.vakildiary.app.R
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AuthViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AuthUiState
@@ -121,7 +122,10 @@ fun SignInScreen(
                 if (uiState is AuthUiState.Loading) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = VakilTheme.colors.onAccent, strokeWidth = 2.dp)
                 } else {
-                    Text(text = "Sign in with Google", style = VakilTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    ButtonLabel(
+                        text = "Sign in with Google",
+                        style = VakilTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             }
 
@@ -131,10 +135,9 @@ fun SignInScreen(
                 onClick = { viewModel.skipSignIn() },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Continue as Guest", 
-                    style = VakilTheme.typography.labelMedium,
-                    color = VakilTheme.colors.textSecondary
+                ButtonLabel(
+                    text = "Continue as Guest",
+                    style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
                 )
             }
         }

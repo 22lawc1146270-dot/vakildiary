@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.domain.model.Task
 import com.vakildiary.app.presentation.viewmodels.OverdueTasksViewModel
 import com.vakildiary.app.presentation.viewmodels.state.OverdueTasksUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -95,7 +96,7 @@ private fun OverdueTaskRow(task: Task, onMarkDone: () -> Unit) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onMarkDone) {
-                    Text(text = "Mark Done")
+                    ButtonLabel(text = "Mark Done")
                 }
             }
         }

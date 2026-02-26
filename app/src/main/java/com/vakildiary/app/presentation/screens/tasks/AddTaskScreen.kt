@@ -24,6 +24,7 @@ import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddTaskViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddTaskUiState
 import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -178,11 +179,7 @@ fun AddTaskScreen(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(VakilTheme.spacing.md)
             ) {
-                Text(
-                    text = "Save Task",
-                    style = VakilTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                ButtonLabel(text = "Save Task", style = VakilTheme.typography.labelMedium)
             }
         }
     }
@@ -201,10 +198,20 @@ fun AddTaskScreen(
                 TextButton(onClick = {
                     dateMillis = datePickerState.selectedDateMillis
                     showDatePicker = false
-                }) { Text(text = "Confirm", color = VakilTheme.colors.accentPrimary) }
+                }) {
+                    ButtonLabel(
+                        text = "Confirm",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.accentPrimary)
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
+                TextButton(onClick = { showDatePicker = false }) {
+                    ButtonLabel(
+                        text = "Cancel",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
+                    )
+                }
             },
             colors = DatePickerDefaults.colors(containerColor = VakilTheme.colors.bgElevated)
         ) {

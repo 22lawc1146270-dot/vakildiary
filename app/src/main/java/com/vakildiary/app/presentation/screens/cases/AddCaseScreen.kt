@@ -16,8 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
@@ -25,6 +27,7 @@ import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +47,7 @@ fun AddCaseScreen(
     prefillEcourtCaseTypeCode: String? = null,
     prefillEcourtYear: String? = null,
     onBack: () -> Unit = {},
+    onRegistered: () -> Unit = {},
     viewModel: AddCaseViewModel = hiltViewModel()
 ) {
     val formState by viewModel.formState.collectAsStateWithLifecycle()
@@ -121,21 +125,6 @@ fun AddCaseScreen(
                 .padding(VakilTheme.spacing.md),
             verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
         ) {
-            if (uiState is AddCaseUiState.Error) {
-                Surface(
-                    color = VakilTheme.colors.error.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = (uiState as AddCaseUiState.Error).message,
-                        color = VakilTheme.colors.error,
-                        style = VakilTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(VakilTheme.spacing.sm)
-                    )
-                }
-            }
-
             FormSection("Basic Information") {
                 AppTextField(
                     value = formState.caseName,
@@ -254,15 +243,41 @@ fun AddCaseScreen(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(VakilTheme.spacing.md)
             ) {
-                Text(
+                ButtonLabel(
                     text = if (uiState is AddCaseUiState.Loading) "Processing..." else "Register Case",
-                    style = VakilTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
+                    style = VakilTheme.typography.labelMedium
                 )
             }
             
             Spacer(modifier = Modifier.height(VakilTheme.spacing.xl))
         }
+    }
+
+    if (uiState is AddCaseUiState.Success && (uiState as AddCaseUiState.Success).isSaved) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(text = stringResource(id = R.string.case_register_success_title)) },
+            text = { Text(text = stringResource(id = R.string.case_register_success_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.resetState()
+                    onRegistered()
+                }) { ButtonLabel(text = stringResource(id = R.string.case_register_ok)) }
+            }
+        )
+    }
+
+    if (uiState is AddCaseUiState.Error) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resetState() },
+            title = { Text(text = stringResource(id = R.string.case_register_error_title)) },
+            text = { Text(text = (uiState as AddCaseUiState.Error).message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.resetState() }) {
+                    ButtonLabel(text = stringResource(id = R.string.case_register_ok))
+                }
+            }
+        )
     }
 }
 

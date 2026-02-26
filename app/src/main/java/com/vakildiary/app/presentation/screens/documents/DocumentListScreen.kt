@@ -29,17 +29,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.vakildiary.app.R
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.core.DocumentTags
 import com.vakildiary.app.core.ShareUtils
 import com.vakildiary.app.data.documents.DocumentScannerManager
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.model.Document
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.DocumentListViewModel
 import com.vakildiary.app.presentation.viewmodels.state.CasePickerUiState
 import com.vakildiary.app.presentation.viewmodels.state.DocumentListUiState
@@ -59,6 +63,7 @@ fun DocumentListScreen(
     showTopBar: Boolean = true,
     showBack: Boolean = false,
     onBack: () -> Unit = {},
+    onDownloadReportable: (judgmentId: String, caseNumber: String?, year: String?) -> Unit = { _, _, _ -> },
     viewModel: DocumentListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState(caseId).collectAsStateWithLifecycle()
@@ -198,7 +203,7 @@ fun DocumentListScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "Attach", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Attach", style = VakilTheme.typography.labelMedium)
+                    ButtonLabel(text = "Attach", style = VakilTheme.typography.labelMedium)
                 }
                 Button(
                     onClick = {
@@ -223,7 +228,7 @@ fun DocumentListScreen(
                 ) {
                     Icon(imageVector = Icons.Default.FileOpen, contentDescription = "Scan", modifier = Modifier.size(18.dp), tint = VakilTheme.colors.accentPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Scan", style = VakilTheme.typography.labelMedium, color = VakilTheme.colors.textPrimary)
+                    ButtonLabel(text = "Scan", style = VakilTheme.typography.labelMedium)
                 }
             }
 
@@ -245,23 +250,112 @@ fun DocumentListScreen(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
                         ) {
-                            items(filtered, key = { it.documentId }) { doc ->
-                                LaunchedEffect(doc.documentId) {
-                                    viewModel.loadPreviewIfNeeded(doc)
-                                }
-                                DocumentRow(
-                                    document = doc,
-                                    previewPath = previewMap[doc.documentId],
-                                    onOpen = {
-                                        selectedDocument = doc
-                                        pendingAction = FileAction.OPEN
-                                        viewModel.prepareFileForViewing(doc)
-                                    },
-                                    onLongPress = {
-                                        selectedDocument = doc
-                                        showActionsSheet = true
+                            if (caseId.isNullOrBlank()) {
+                                val judgments = filtered.filter { DocumentTags.isJudgment(it.tags) }
+                                val others = filtered.filterNot { DocumentTags.isJudgment(it.tags) }
+                                val reportable = judgments.filter { DocumentTags.isReportable(it.tags) }
+                                val nonReportable = judgments.filterNot { DocumentTags.isReportable(it.tags) }
+                                val reportableById = reportable.associateBy { DocumentTags.judgmentId(it.tags) }
+                                val nonReportableIds = nonReportable.mapNotNull { DocumentTags.judgmentId(it.tags) }.toSet()
+                                val extraReportable = reportable.filter { DocumentTags.judgmentId(it.tags) !in nonReportableIds }
+                                val judgmentEntries = nonReportable + extraReportable
+
+                                if (judgmentEntries.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = stringResource(id = R.string.document_judgments_section),
+                                            style = VakilTheme.typography.titleMedium,
+                                            color = VakilTheme.colors.textPrimary
+                                        )
                                     }
-                                )
+                                    items(judgmentEntries, key = { it.documentId }) { doc ->
+                                        LaunchedEffect(doc.documentId) {
+                                            viewModel.loadPreviewIfNeeded(doc)
+                                        }
+                                        val judgmentId = DocumentTags.judgmentId(doc.tags)
+                                        val reportableDoc = judgmentId?.let { reportableById[it] }
+                                            ?: if (DocumentTags.isReportable(doc.tags)) doc else null
+                                        JudgmentDocumentRow(
+                                            document = doc,
+                                            previewPath = previewMap[doc.documentId],
+                                            reportableDocument = reportableDoc,
+                                            onOpen = {
+                                                selectedDocument = doc
+                                                pendingAction = FileAction.OPEN
+                                                viewModel.prepareFileForViewing(doc)
+                                            },
+                                            onLongPress = {
+                                                selectedDocument = doc
+                                                showActionsSheet = true
+                                            },
+                                            onDownloadReportable = {
+                                                val caseNumber = DocumentTags.judgmentCaseNumber(doc.tags)
+                                                val year = DocumentTags.judgmentYear(doc.tags)
+                                                if (judgmentId != null) {
+                                                    onDownloadReportable(judgmentId, caseNumber, year)
+                                                } else {
+                                                    Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.document_reportable_unavailable),
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            onViewReportable = { reportableItem ->
+                                                selectedDocument = reportableItem
+                                                pendingAction = FileAction.OPEN
+                                                viewModel.prepareFileForViewing(reportableItem)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (others.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = stringResource(id = R.string.document_files_section),
+                                            style = VakilTheme.typography.titleMedium,
+                                            color = VakilTheme.colors.textPrimary
+                                        )
+                                    }
+                                    items(others, key = { it.documentId }) { doc ->
+                                        LaunchedEffect(doc.documentId) {
+                                            viewModel.loadPreviewIfNeeded(doc)
+                                        }
+                                        DocumentRow(
+                                            document = doc,
+                                            previewPath = previewMap[doc.documentId],
+                                            onOpen = {
+                                                selectedDocument = doc
+                                                pendingAction = FileAction.OPEN
+                                                viewModel.prepareFileForViewing(doc)
+                                            },
+                                            onLongPress = {
+                                                selectedDocument = doc
+                                                showActionsSheet = true
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                items(filtered, key = { it.documentId }) { doc ->
+                                    LaunchedEffect(doc.documentId) {
+                                        viewModel.loadPreviewIfNeeded(doc)
+                                    }
+                                    DocumentRow(
+                                        document = doc,
+                                        previewPath = previewMap[doc.documentId],
+                                        onOpen = {
+                                            selectedDocument = doc
+                                            pendingAction = FileAction.OPEN
+                                            viewModel.prepareFileForViewing(doc)
+                                        },
+                                        onLongPress = {
+                                            selectedDocument = doc
+                                            showActionsSheet = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -271,6 +365,8 @@ fun DocumentListScreen(
     }
 
     if (showActionsSheet && selectedDocument != null) {
+        val isJudgment = DocumentTags.isJudgment(selectedDocument!!.tags)
+        val isReportable = DocumentTags.isReportable(selectedDocument!!.tags)
         ModalBottomSheet(
             onDismissRequest = { showActionsSheet = false },
             containerColor = VakilTheme.colors.bgSecondary
@@ -294,10 +390,12 @@ fun DocumentListScreen(
                     showRenameDialog = true
                     showActionsSheet = false
                 }
-                ActionItem("Move to Case", Icons.Default.DriveFileMove) {
-                    selectedMoveCaseId = selectedDocument!!.caseId
-                    showMoveDialog = true
-                    showActionsSheet = false
+                if (!isJudgment || isReportable) {
+                    ActionItem("Move to Case", Icons.Default.DriveFileMove) {
+                        selectedMoveCaseId = selectedDocument!!.caseId
+                        showMoveDialog = true
+                        showActionsSheet = false
+                    }
                 }
                 ActionItem("Delete", Icons.Default.Delete, isError = true) {
                     viewModel.deleteDocument(selectedDocument!!)
@@ -329,10 +427,20 @@ fun DocumentListScreen(
                 TextButton(onClick = {
                     viewModel.renameDocument(selectedDocument!!, renameText.trim())
                     showRenameDialog = false
-                }) { Text(text = "Save", color = VakilTheme.colors.accentPrimary) }
+                }) {
+                    ButtonLabel(
+                        text = "Save",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.accentPrimary)
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
+                TextButton(onClick = { showRenameDialog = false }) {
+                    ButtonLabel(
+                        text = "Cancel",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
+                    )
+                }
             }
         )
     }
@@ -360,10 +468,20 @@ fun DocumentListScreen(
                 TextButton(onClick = {
                     viewModel.moveDocument(selectedDocument!!, selectedMoveCaseId)
                     showMoveDialog = false
-                }) { Text(text = "Move", color = VakilTheme.colors.accentPrimary) }
+                }) {
+                    ButtonLabel(
+                        text = "Move",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.accentPrimary)
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showMoveDialog = false }) { Text(text = "Cancel", color = VakilTheme.colors.textSecondary) }
+                TextButton(onClick = { showMoveDialog = false }) {
+                    ButtonLabel(
+                        text = "Cancel",
+                        style = VakilTheme.typography.labelMedium.copy(color = VakilTheme.colors.textSecondary)
+                    )
+                }
             }
         )
     }
@@ -436,6 +554,95 @@ private fun DocumentRow(
                     text = formatMeta(document.fileSizeBytes, document.createdAt),
                     style = VakilTheme.typography.labelSmall,
                     color = VakilTheme.colors.textSecondary
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun JudgmentDocumentRow(
+    document: Document,
+    previewPath: String?,
+    reportableDocument: Document?,
+    onOpen: () -> Unit,
+    onLongPress: () -> Unit,
+    onDownloadReportable: () -> Unit,
+    onViewReportable: (Document) -> Unit
+) {
+    AppCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
+    ) {
+        Column(
+            modifier = Modifier.padding(VakilTheme.spacing.md),
+            verticalArrangement = Arrangement.spacedBy(VakilTheme.spacing.sm)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.md)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(VakilTheme.colors.bgSurfaceSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (document.fileType.startsWith("image")) {
+                        AsyncImage(
+                            model = previewPath ?: document.thumbnailPath ?: document.filePath,
+                            contentDescription = document.fileName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = VakilTheme.colors.accentPrimary
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = document.fileName,
+                        style = VakilTheme.typography.bodyLarge,
+                        color = VakilTheme.colors.textPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = formatMeta(document.fileSizeBytes, document.createdAt),
+                        style = VakilTheme.typography.labelSmall,
+                        color = VakilTheme.colors.textSecondary
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = {
+                    if (reportableDocument == null) {
+                        onDownloadReportable()
+                    } else {
+                        onViewReportable(reportableDocument)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ButtonLabel(
+                    text = if (reportableDocument == null) {
+                        stringResource(id = R.string.document_download_reportable)
+                    } else {
+                        stringResource(id = R.string.document_view_reportable)
+                    },
+                    style = VakilTheme.typography.labelMedium
                 )
             }
         }

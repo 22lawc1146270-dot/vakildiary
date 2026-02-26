@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -54,6 +56,7 @@ import com.vakildiary.app.presentation.viewmodels.FeesViewModel
 import com.vakildiary.app.presentation.viewmodels.state.FeeExportUiState
 import com.vakildiary.app.core.ShareUtils
 import com.vakildiary.app.presentation.viewmodels.state.CaseExportUiState
+import com.vakildiary.app.presentation.components.ButtonLabel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -71,6 +74,7 @@ fun CaseDetailScreen(
     onAddDocument: (String) -> Unit = {},
     onEdit: (String) -> Unit = {},
     onAddMeeting: (String) -> Unit = {},
+    onCaseDeleted: () -> Unit = {},
     viewModel: CaseDetailViewModel = hiltViewModel()
 ) {
     val tabs = listOf("Overview", "History", "Tasks", "Fees", "Documents", "Meetings")
@@ -82,6 +86,8 @@ fun CaseDetailScreen(
     val historyState by exportViewModel.historyState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteOption by remember { mutableStateOf(CaseDeleteOption.ARCHIVE) }
 
     LaunchedEffect(summaryState) {
         val state = summaryState
@@ -169,10 +175,9 @@ fun CaseDetailScreen(
                                     )
                                 }
                             },
-                            onArchive = {
-                                scope.launch {
-                                    viewModel.archiveCase(state.case.caseId)
-                                }
+                            onDelete = {
+                                deleteOption = CaseDeleteOption.ARCHIVE
+                                showDeleteDialog = true
                             }
                         )
                         1 -> HistoryTab(
@@ -191,7 +196,11 @@ fun CaseDetailScreen(
                             payments = state.payments,
                             onAddPayment = onAddPayment
                         )
-                        4 -> DocumentListScreen(caseId = caseId, showTopBar = false)
+                        4 -> DocumentListScreen(
+                            caseId = caseId,
+                            showTopBar = false,
+                            onDownloadReportable = { _, _, _ -> }
+                        )
                         else -> MeetingsTab(
                             caseId = caseId,
                             onAddMeeting = { onAddMeeting(caseId) }
@@ -200,6 +209,73 @@ fun CaseDetailScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(text = "Delete Case") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = "Choose how you want to delete this case.")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = deleteOption == CaseDeleteOption.ARCHIVE,
+                            onClick = { deleteOption = CaseDeleteOption.ARCHIVE }
+                        )
+                        Text(
+                            text = "Archive (soft delete)",
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = deleteOption == CaseDeleteOption.PERMANENT,
+                            onClick = { deleteOption = CaseDeleteOption.PERMANENT }
+                        )
+                        Text(
+                            text = "Delete permanently (removes all related data)",
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val result = when (deleteOption) {
+                            CaseDeleteOption.ARCHIVE -> viewModel.archiveCase(caseId)
+                            CaseDeleteOption.PERMANENT -> viewModel.deleteCase(caseId)
+                        }
+                        if (result is com.vakildiary.app.core.Result.Success) {
+                            if (deleteOption == CaseDeleteOption.PERMANENT) {
+                                onCaseDeleted()
+                            }
+                        } else if (result is com.vakildiary.app.core.Result.Error) {
+                            android.widget.Toast.makeText(
+                                context,
+                                result.message,
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        showDeleteDialog = false
+                    }
+                }) {
+                    ButtonLabel(
+                        text = if (deleteOption == CaseDeleteOption.PERMANENT) "Delete" else "Archive"
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { ButtonLabel(text = "Cancel") }
+            }
+        )
     }
 }
 
@@ -228,7 +304,7 @@ private fun OverviewTab(
     onUpdateNextHearing: (Long) -> Unit,
     onStageChanged: (CaseStage) -> Unit,
     onCustomStageChanged: (String) -> Unit,
-    onArchive: () -> Unit
+    onDelete: () -> Unit
 ) {
     val outstanding = (agreedFees - totalReceived).coerceAtLeast(0.0)
     val progress = if (agreedFees > 0.0) {
@@ -255,7 +331,7 @@ private fun OverviewTab(
         ) {
             Text(text = "Next Hearing: ${formatDate(nextHearingDate)}")
             Button(onClick = { showDatePicker = true }) {
-                Text(text = "Edit")
+                ButtonLabel(text = "Edit")
             }
             if (nextHearingDate != null) {
                 val context = LocalContext.current
@@ -299,27 +375,27 @@ private fun OverviewTab(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onAddHearing) { Text(text = "Add Hearing") }
-            Button(onClick = onAddTask) { Text(text = "Add Task") }
+            Button(onClick = onAddHearing) { ButtonLabel(text = "Add Hearing") }
+            Button(onClick = onAddTask) { ButtonLabel(text = "Add Task") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onAddPayment) { Text(text = "Add Payment") }
-            Button(onClick = onAddDocument) { Text(text = "Add Document") }
-            Button(onClick = onArchive) { Text(text = "Archive") }
-            Button(onClick = onEdit) { Text(text = "Edit") }
+            Button(onClick = onAddPayment) { ButtonLabel(text = "Add Payment") }
+            Button(onClick = onAddDocument) { ButtonLabel(text = "Add Document") }
+            Button(onClick = onDelete) { ButtonLabel(text = "Delete") }
+            Button(onClick = onEdit) { ButtonLabel(text = "Edit") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = onExportSummary,
                 enabled = summaryState !is CaseExportUiState.Loading
             ) {
-                Text(text = if (summaryState is CaseExportUiState.Loading) "Exporting..." else "Export Summary")
+                ButtonLabel(text = if (summaryState is CaseExportUiState.Loading) "Exporting..." else "Export Summary")
             }
             Button(
                 onClick = onExportHistory,
                 enabled = historyState !is CaseExportUiState.Loading
             ) {
-                Text(text = if (historyState is CaseExportUiState.Loading) "Exporting..." else "Export History")
+                ButtonLabel(text = if (historyState is CaseExportUiState.Loading) "Exporting..." else "Export History")
             }
         }
         if (summaryState is CaseExportUiState.Error) {
@@ -359,10 +435,10 @@ private fun OverviewTab(
                     } else {
                         nextDateError = "Next hearing date must be in the future"
                     }
-                }) { Text(text = "OK") }
+                }) { ButtonLabel(text = "OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { ButtonLabel(text = "Cancel") }
             }
         ) {
             DatePicker(state = pickerState)
@@ -409,6 +485,11 @@ private fun CaseStageDropdown(
             }
         }
     }
+}
+
+private enum class CaseDeleteOption {
+    ARCHIVE,
+    PERMANENT
 }
 
 @Composable
@@ -480,7 +561,7 @@ private fun TasksTab(
         ) {
             Text(text = "Tasks", style = MaterialTheme.typography.titleMedium)
             Button(onClick = onAddTask) {
-                Text(text = "Add Task")
+                ButtonLabel(text = "Add Task")
             }
         }
         TaskListScreen(caseId = caseId)
@@ -533,11 +614,11 @@ private fun FeesTab(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onAddPayment) { Text(text = "Add Payment") }
+            Button(onClick = onAddPayment) { ButtonLabel(text = "Add Payment") }
             Button(
                 onClick = { feesViewModel.exportFeeLedger(caseData, payments) },
                 enabled = exportState !is FeeExportUiState.Loading
-            ) { Text(text = "Export Ledger") }
+            ) { ButtonLabel(text = "Export Ledger") }
             Button(
                 onClick = {
                     ShareUtils.shareFeeSummaryText(
@@ -549,7 +630,7 @@ private fun FeesTab(
                         outstanding = "₹${outstanding.toInt()}"
                     )
                 }
-            ) { Text(text = "Share Summary") }
+            ) { ButtonLabel(text = "Share Summary") }
         }
 
         if (exportState is FeeExportUiState.Error) {
@@ -585,7 +666,7 @@ private fun MeetingsTab(
         ) {
             Text(text = "Meetings", style = MaterialTheme.typography.titleMedium)
             Button(onClick = onAddMeeting) {
-                Text(text = "Add Meeting")
+                ButtonLabel(text = "Add Meeting")
             }
         }
         MeetingListScreen(caseId = caseId)

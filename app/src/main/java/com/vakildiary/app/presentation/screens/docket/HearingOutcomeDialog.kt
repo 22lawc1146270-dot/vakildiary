@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 
 @Composable
@@ -86,7 +87,7 @@ fun HearingOutcomeDialog(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Add Voice Note", style = VakilTheme.typography.labelSmall)
+                    ButtonLabel(text = "Add Voice Note", style = VakilTheme.typography.labelSmall)
                 }
                 
                 if (!voiceNotePath.isNullOrBlank()) {
@@ -107,16 +108,25 @@ fun HearingOutcomeDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = VakilTheme.colors.accentPrimary),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text(text = "Save & Complete", style = VakilTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                ButtonLabel(
+                    text = "Save & Complete",
+                    style = VakilTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
             }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(VakilTheme.spacing.xs)) {
                 TextButton(onClick = { onSkipAndMarkDone(outcome, orderDetails, adjournmentReason, nextDate) }) {
-                    Text(text = "Skip", color = VakilTheme.colors.textSecondary, style = VakilTheme.typography.labelSmall)
+                    ButtonLabel(
+                        text = "Skip",
+                        style = VakilTheme.typography.labelSmall.copy(color = VakilTheme.colors.textSecondary)
+                    )
                 }
                 TextButton(onClick = onDismiss) {
-                    Text(text = "Cancel", color = VakilTheme.colors.textTertiary, style = VakilTheme.typography.labelSmall)
+                    ButtonLabel(
+                        text = "Cancel",
+                        style = VakilTheme.typography.labelSmall.copy(color = VakilTheme.colors.textTertiary)
+                    )
                 }
             }
         }

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vakildiary.app.presentation.components.AppCard
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.components.UrgencyBadge
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.DashboardViewModel
@@ -295,7 +296,7 @@ private fun TodayTasksSection(tasksToday: List<String>, onAddTask: () -> Unit) {
             color = VakilTheme.colors.textSecondary
         )
         TextButton(onClick = onAddTask) {
-            Text(text = "Add Task")
+            ButtonLabel(text = "Add Task")
         }
     }
     

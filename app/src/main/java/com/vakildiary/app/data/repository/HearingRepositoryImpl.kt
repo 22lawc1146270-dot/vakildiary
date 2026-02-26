@@ -33,6 +33,15 @@ class HearingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteHearingsByCaseId(caseId: String): Result<Unit> {
+        return try {
+            hearingHistoryDao.deleteHearingsByCaseId(caseId)
+            Result.Success(Unit)
+        } catch (t: Throwable) {
+            Result.Error(message = "Failed to delete hearings", throwable = t)
+        }
+    }
+
     private fun HearingHistory.toEntity(): HearingHistoryEntity =
         HearingHistoryEntity(
             hearingId = hearingId,

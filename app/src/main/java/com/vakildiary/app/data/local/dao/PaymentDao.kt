@@ -21,4 +21,7 @@ interface PaymentDao {
 
     @Delete
     suspend fun deletePayment(payment: PaymentEntity)
+
+    @Query("DELETE FROM payments WHERE caseId = :caseId")
+    suspend fun deletePaymentsByCaseId(caseId: String)
 }

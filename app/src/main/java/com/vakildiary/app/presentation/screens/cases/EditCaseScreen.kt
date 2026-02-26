@@ -37,6 +37,7 @@ import com.vakildiary.app.domain.model.CaseStage
 import com.vakildiary.app.domain.model.CaseType
 import com.vakildiary.app.domain.model.CourtType
 import com.vakildiary.app.domain.model.displayLabel
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.EditCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
 import androidx.compose.runtime.remember
@@ -208,7 +209,7 @@ fun EditCaseScreen(
                 enabled = uiState !is AddCaseUiState.Loading,
                 contentPadding = PaddingValues(vertical = 14.dp)
             ) {
-                Text(text = if (uiState is AddCaseUiState.Loading) "Saving..." else "Save Changes")
+                ButtonLabel(text = if (uiState is AddCaseUiState.Loading) "Saving..." else "Save Changes")
             }
         }
     }

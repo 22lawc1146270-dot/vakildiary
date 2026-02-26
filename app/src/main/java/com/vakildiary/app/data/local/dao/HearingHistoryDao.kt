@@ -25,4 +25,7 @@ interface HearingHistoryDao {
         "DELETE FROM hearing_history WHERE case_id = :caseId AND DATE(hearingDate/1000,'unixepoch') = DATE('now')"
     )
     suspend fun deleteHearingsForCaseToday(caseId: String)
+
+    @Query("DELETE FROM hearing_history WHERE case_id = :caseId")
+    suspend fun deleteHearingsByCaseId(caseId: String)
 }

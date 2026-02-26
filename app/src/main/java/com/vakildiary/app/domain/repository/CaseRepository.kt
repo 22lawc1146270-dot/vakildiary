@@ -12,4 +12,5 @@ interface CaseRepository {
     fun getAllActiveCases(): Flow<Result<List<Case>>>
     fun searchCases(query: String): Flow<Result<List<Case>>>
     suspend fun archiveCase(caseId: String): Result<Unit>
+    suspend fun deleteCase(caseId: String): Result<Unit>
 }

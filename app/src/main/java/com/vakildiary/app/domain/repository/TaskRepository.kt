@@ -13,4 +13,5 @@ interface TaskRepository {
     fun getOverdueTasksByCaseId(caseId: String, now: Long): Flow<Result<List<Task>>>
     fun getTaskById(id: String): Flow<Result<Task>>
     suspend fun deleteTask(task: Task): Result<Unit>
+    suspend fun deleteTasksByCaseId(caseId: String): Result<Unit>
 }

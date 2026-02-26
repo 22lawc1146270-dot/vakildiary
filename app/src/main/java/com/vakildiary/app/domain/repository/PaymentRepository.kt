@@ -8,4 +8,5 @@ interface PaymentRepository {
     suspend fun insertPayment(payment: Payment): Result<Unit>
     fun getPaymentsByCaseId(caseId: String): Flow<Result<List<Payment>>>
     suspend fun deletePayment(payment: Payment): Result<Unit>
+    suspend fun deletePaymentsByCaseId(caseId: String): Result<Unit>
 }

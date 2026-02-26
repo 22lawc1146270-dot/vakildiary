@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.viewmodels.MeetingViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,7 +138,7 @@ fun AddMeetingScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(vertical = 14.dp)
             ) {
-                Text(text = "Save Meeting")
+                ButtonLabel(text = "Save Meeting")
             }
         }
     }
@@ -150,10 +151,10 @@ fun AddMeetingScreen(
                 TextButton(onClick = {
                     meetingDateMillis = datePickerState.selectedDateMillis
                     showDatePicker = false
-                }) { Text(text = "OK") }
+                }) { ButtonLabel(text = "OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { ButtonLabel(text = "Cancel") }
             }
         ) {
             DatePicker(state = datePickerState)
