@@ -1,7 +1,9 @@
 package com.vakildiary.app.di
 
+import com.vakildiary.app.BuildConfig
 import com.vakildiary.app.data.remote.ECourtApiService
 import com.vakildiary.app.data.remote.judgments.SCJudgmentService
+import com.vakildiary.app.data.remote.reportable.ReportableBackendService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -23,7 +25,7 @@ object NetworkModule {
     private const val ECOURT_HOST = "services.ecourts.gov.in"
     private const val ECOURT_REFERER = "https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index"
     private const val ECOURT_ORIGIN = "https://services.ecourts.gov.in"
-    private const val SCI_HOST = "www.sci.gov.in"
+    private const val SCI_HOST_SUFFIX = "sci.gov.in"
     private const val SCI_REFERER = "https://www.sci.gov.in/judgements-case-no/"
     private const val SCI_ORIGIN = "https://www.sci.gov.in"
     private const val ECOURT_USER_AGENT =
@@ -50,7 +52,7 @@ object NetworkModule {
                         .header("X-Requested-With", "XMLHttpRequest")
                         .build()
                     chain.proceed(updated)
-                } else if (request.url.host == SCI_HOST) {
+                } else if (request.url.host.endsWith(SCI_HOST_SUFFIX, ignoreCase = true)) {
                     val updated = request.newBuilder()
                         .header("User-Agent", SCI_USER_AGENT)
                         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -99,5 +101,24 @@ object NetworkModule {
     @Singleton
     fun provideScJudgmentService(@Named("sc_judgment") retrofit: Retrofit): SCJudgmentService {
         return retrofit.create(SCJudgmentService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("reportable_backend")
+    fun provideReportableBackendRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.REPORTABLE_BACKEND_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideReportableBackendService(
+        @Named("reportable_backend") retrofit: Retrofit
+    ): ReportableBackendService {
+        return retrofit.create(ReportableBackendService::class.java)
     }
 }

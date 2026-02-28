@@ -138,7 +138,7 @@ fun ReportableJudgmentScreen(
                         )
                     )
 
-                    if (state.data.fields.caseYear != null) {
+                    if (state.data.requiresCaseYear) {
                         OutlinedTextField(
                             value = caseYearValue,
                             onValueChange = { caseYearValue = it },
@@ -151,7 +151,7 @@ fun ReportableJudgmentScreen(
                         )
                     }
 
-                    if (state.data.fields.diaryYear != null) {
+                    if (state.data.requiresDiaryYear) {
                         OutlinedTextField(
                             value = diaryYearValue,
                             onValueChange = { diaryYearValue = it },
@@ -173,11 +173,13 @@ fun ReportableJudgmentScreen(
 
                     Button(
                         onClick = {
+                            val sessionId = state.data.sessionId
                             val formInput = ReportableFormInput(
+                                sessionId = sessionId,
                                 caseTypeValue = selectedCaseType?.value.orEmpty(),
                                 caseNumber = caseNumberValue,
-                                caseYear = caseYearValue.takeIf { state.data.fields.caseYear != null },
-                                diaryYear = diaryYearValue.takeIf { state.data.fields.diaryYear != null },
+                                caseYear = caseYearValue.takeIf { state.data.requiresCaseYear },
+                                diaryYear = diaryYearValue.takeIf { state.data.requiresDiaryYear },
                                 captcha = captchaValue
                             )
                             val tagYear = caseYearValue.ifBlank { year.orEmpty() }

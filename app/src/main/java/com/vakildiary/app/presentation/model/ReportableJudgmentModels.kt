@@ -5,24 +5,17 @@ data class ReportableCaseTypeOption(
     val label: String
 )
 
-data class ReportableFormFields(
-    val caseType: String,
-    val caseNumber: String,
-    val caseYear: String?,
-    val diaryYear: String?,
-    val captcha: String
-)
-
 data class ReportableFormData(
-    val actionUrl: String,
+    val sessionId: String,
     val caseTypes: List<ReportableCaseTypeOption>,
-    val fields: ReportableFormFields,
-    val hiddenFields: Map<String, String>,
+    val requiresCaseYear: Boolean,
+    val requiresDiaryYear: Boolean,
     val captchaImage: ByteArray,
     val suggestedCaseTypeValue: String?
 )
 
 data class ReportableFormInput(
+    val sessionId: String,
     val caseTypeValue: String,
     val caseNumber: String,
     val caseYear: String?,

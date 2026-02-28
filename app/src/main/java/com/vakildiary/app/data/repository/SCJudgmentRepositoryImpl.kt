@@ -17,6 +17,8 @@ import retrofit2.HttpException
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.zip.GZIPInputStream
+import java.util.zip.ZipInputStream
 import javax.inject.Inject
 
 class SCJudgmentRepositoryImpl @Inject constructor(
@@ -87,46 +89,54 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         val fileToArchive = buildArchiveLookup(englishIndex.parts)
         val syncedAt = System.currentTimeMillis()
         metadataIndex.parts.forEach { part ->
-            val archiveName = part.partName() ?: return@forEach
-            val archivePath = "metadata/tar/year=$yearString/$archiveName"
+            val partName = part.partName() ?: return@forEach
+            val partPath = "data/zip/year=$yearString/$partName"
             val entities = mutableListOf<JudgmentMetadataEntity>()
-            service.downloadArchive(archivePath).use { body ->
-                body.byteStream().use { stream ->
-                    TarArchiveInputStream(stream).use { tarInput ->
-                        while (true) {
-                            val entry = tarInput.nextTarEntry ?: break
-                            if (!entry.isFile || !entry.name.endsWith(".json")) continue
-                            val json = readEntry(tarInput)
-                            val dto = gson.fromJson(json, JudgmentMetadataDto::class.java)
-                            val path = dto.path?.trim().orEmpty()
-                            if (path.isBlank()) continue
-                            val fileName = "${path}_EN.pdf"
-                            val fileArchive = fileToArchive[fileName] ?: continue
-                            val parsed = parseMetadata(dto.rawHtml.orEmpty())
-                            val title = parsed.caseNumber?.ifBlank { null }
-                                ?: dto.citationDisplay?.ifBlank { null }
-                                ?: fileName.removeSuffix(".pdf").replace('_', ' ')
-                            val searchText = buildSearchText(dto, parsed)
-                            entities.add(
-                                JudgmentMetadataEntity(
-                                    judgmentId = fileName,
-                                    title = title,
-                                    citation = dto.citationDisplay,
-                                    bench = parsed.bench,
-                                    coram = parsed.coram,
-                                    caseNumber = parsed.caseNumber,
-                                    petitioner = parsed.petitioner,
-                                    respondent = parsed.respondent,
-                                    year = year,
-                                    archiveName = fileArchive,
-                                    fileName = fileName,
-                                    dateOfJudgment = parsed.decisionDate,
-                                    searchText = searchText,
-                                    syncedAt = syncedAt
-                                )
-                            )
-                        }
+            service.downloadArchive(partPath).use { body ->
+                val payload = readMetadataPayload(partName, body)
+                val entries = parseMetadataPayload(payload)
+                entries.forEach { dto ->
+                    val path = dto.path?.trim().orEmpty()
+                    if (path.isBlank()) return@forEach
+                    val fileName = "${path}_EN.pdf"
+                    val fileArchive = fileToArchive[fileName] ?: return@forEach
+                    val parsed = if (!dto.rawHtml.isNullOrBlank()) {
+                        parseMetadata(dto.rawHtml)
+                    } else {
+                        ParsedMetadata.empty()
                     }
+                    val petitioner = dto.petitioner?.ifBlank { null } ?: parsed.petitioner
+                    val respondent = dto.respondent?.ifBlank { null } ?: parsed.respondent
+                    val caseId = dto.caseId?.ifBlank { null } ?: parsed.caseNumber
+                    val citation = dto.citation?.ifBlank { null } ?: dto.citationDisplay?.ifBlank { null }
+                    val decisionDate = parseDecisionDateValue(dto.decisionDate) ?: parsed.decisionDate
+                    val title = caseId?.ifBlank { null }
+                        ?: citation?.ifBlank { null }
+                        ?: fileName.removeSuffix(".pdf").replace('_', ' ')
+                    val searchText = buildSearchText(
+                        petitioner = petitioner,
+                        respondent = respondent,
+                        caseId = caseId,
+                        citation = citation
+                    )
+                    entities.add(
+                        JudgmentMetadataEntity(
+                            judgmentId = fileName,
+                            title = title,
+                            citation = citation,
+                            bench = parsed.bench,
+                            coram = parsed.coram,
+                            caseNumber = caseId,
+                            petitioner = petitioner,
+                            respondent = respondent,
+                            year = year,
+                            archiveName = fileArchive,
+                            fileName = fileName,
+                            dateOfJudgment = decisionDate,
+                            searchText = searchText,
+                            syncedAt = syncedAt
+                        )
+                    )
                 }
             }
             if (entities.isNotEmpty()) {
@@ -173,17 +183,15 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         return null
     }
 
-    private fun buildSearchText(dto: JudgmentMetadataDto, parsed: ParsedMetadata): String {
-        val raw = parsed.rawText
-        val tokens = listOfNotNull(
-            parsed.caseNumber,
-            parsed.bench,
-            parsed.coram,
-            parsed.petitioner,
-            parsed.respondent,
-            dto.citationDisplay
-        ).joinToString(" ")
-        return "$raw $tokens".lowercase()
+    private fun buildSearchText(
+        petitioner: String?,
+        respondent: String?,
+        caseId: String?,
+        citation: String?
+    ): String {
+        return listOfNotNull(petitioner, respondent, caseId, citation)
+            .joinToString(" ")
+            .lowercase()
     }
 
     private fun parseMetadata(rawHtml: String): ParsedMetadata {
@@ -213,12 +221,38 @@ class SCJudgmentRepositoryImpl @Inject constructor(
 
     private fun parseDecisionDate(rawHtml: String): Long? {
         val value = extractValue(rawHtml, "Decision Date") ?: return null
+        return parseDateParts(value)
+    }
+
+    private fun parseDecisionDateValue(value: String?): Long? {
+        val trimmed = value?.trim().orEmpty()
+        if (trimmed.isBlank()) return null
+        val numeric = trimmed.toLongOrNull()
+        if (numeric != null) {
+            return if (numeric < 100_000_000_000L) numeric * 1000 else numeric
+        }
+        val instant = runCatching { java.time.Instant.parse(trimmed) }.getOrNull()
+        if (instant != null) return instant.toEpochMilli()
+        val localDate = runCatching { java.time.LocalDate.parse(trimmed) }.getOrNull()
+        if (localDate != null) {
+            return localDate.atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+        }
+        return parseDateParts(trimmed)
+    }
+
+    private fun parseDateParts(value: String): Long? {
         val parts = value.split("-", "/", ".").map { it.trim() }.filter { it.isNotBlank() }
         if (parts.size != 3) return null
+        val first = parts[0].toIntOrNull() ?: return null
+        val second = parts[1].toIntOrNull() ?: return null
+        val third = parts[2].toIntOrNull() ?: return null
+        val (year, month, day) = if (parts[0].length == 4) {
+            Triple(first, second, third)
+        } else {
+            Triple(third, second, first)
+        }
         return runCatching {
-            val day = parts[0].toInt()
-            val month = parts[1].toInt()
-            val year = parts[2].toInt()
             java.time.LocalDate.of(year, month, day)
                 .atStartOfDay(java.time.ZoneId.systemDefault())
                 .toInstant().toEpochMilli()
@@ -245,6 +279,39 @@ class SCJudgmentRepositoryImpl @Inject constructor(
             .trim()
     }
 
+    private fun readMetadataPayload(partName: String, body: okhttp3.ResponseBody): String {
+        val stream = body.byteStream()
+        return when {
+            partName.endsWith(".gz", ignoreCase = true) -> {
+                GZIPInputStream(stream).use { it.readBytes().toString(Charsets.UTF_8) }
+            }
+            partName.endsWith(".zip", ignoreCase = true) -> {
+                ZipInputStream(stream).use { zip ->
+                    val entry = zip.nextEntry ?: return ""
+                    val payload = zip.readBytes().toString(Charsets.UTF_8)
+                    zip.closeEntry()
+                    payload
+                }
+            }
+            else -> stream.readBytes().toString(Charsets.UTF_8)
+        }
+    }
+
+    private fun parseMetadataPayload(payload: String): List<JudgmentMetadataDto> {
+        val trimmed = payload.trim()
+        if (trimmed.isBlank()) return emptyList()
+        if (trimmed.startsWith("[")) {
+            return gson.fromJson(trimmed, Array<JudgmentMetadataDto>::class.java).toList()
+        }
+        return trimmed.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .mapNotNull { line ->
+                runCatching { gson.fromJson(line, JudgmentMetadataDto::class.java) }.getOrNull()
+            }
+            .toList()
+    }
+
     private fun JudgmentMetadataEntity.toSearchResult(): JudgmentSearchResult {
         return JudgmentSearchResult(
             judgmentId = judgmentId,
@@ -267,7 +334,19 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         val petitioner: String?,
         val respondent: String?,
         val rawText: String
-    )
+    ) {
+        companion object {
+            fun empty() = ParsedMetadata(
+                decisionDate = null,
+                caseNumber = null,
+                bench = null,
+                coram = null,
+                petitioner = null,
+                respondent = null,
+                rawText = ""
+            )
+        }
+    }
 
     companion object {
         private const val TAG = "SCJudgmentRepo"

@@ -7,7 +7,7 @@ import retrofit2.http.Streaming
 import retrofit2.http.Url
 
 interface SCJudgmentService {
-    @GET("metadata/tar/year={year}/metadata.index.json")
+    @GET("data/zip/year={year}/metadata.index.json")
     suspend fun getMetadataIndex(
         @Path("year") year: String
     ): MetadataIndexDto

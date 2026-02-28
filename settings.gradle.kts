@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "VakilDiary"
 include(":app")
+include(":backend")
