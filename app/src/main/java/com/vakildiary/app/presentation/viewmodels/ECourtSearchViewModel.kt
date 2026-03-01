@@ -61,6 +61,7 @@ class ECourtSearchViewModel @Inject constructor(
 
     private var sessionToken: String? = null
     private var lastSearchForm: ECourtSearchForm? = null
+    private var lastSearchHtml: String? = null
 
     private val _detailState = MutableStateFlow<ECourtDetailUiState>(ECourtDetailUiState.Loading)
     val detailState: StateFlow<ECourtDetailUiState> = _detailState.asStateFlow()
@@ -209,7 +210,7 @@ class ECourtSearchViewModel @Inject constructor(
             return
         }
         val token = sessionToken
-        if (token.isNullOrBlank()) {
+        if (token == null) {
             _uiState.value = ECourtSearchUiState.Error("eCourt session not ready. Refresh and try again.")
             return
         }
@@ -240,10 +241,12 @@ class ECourtSearchViewModel @Inject constructor(
                     result.data.captchaImageUrl?.let { _captchaUrl.value = it }
                     result.data.captchaImageBytes?.let { _captchaImage.value = it }
                     val parsed = ECourtParser.parse(result.data.caseHtml, form)
+                    lastSearchHtml = result.data.caseHtml
                     lastSearchForm = form
                     ECourtSearchUiState.Success(parsed)
                 }
                 is Result.Error -> {
+                    lastSearchHtml = null
                     if (result.message.contains("captcha", ignoreCase = true)) {
                         refreshCaptcha()
                     }
@@ -257,7 +260,38 @@ class ECourtSearchViewModel @Inject constructor(
         _selectedItem.value = item
         val detailLink = item.detailLink
         if (detailLink.isNullOrBlank()) {
-            _detailState.value = ECourtDetailUiState.Error("Case detail link missing")
+            val parsedFromSearch = lastSearchHtml?.let { ECourtDetailParser.parse(it, item) }
+            val hasParsedData = parsedFromSearch?.let { details ->
+                details.caseDetails.isNotEmpty() ||
+                    details.caseStatus.isNotEmpty() ||
+                    details.petitionerAdvocate.isNotEmpty() ||
+                    details.respondentAdvocate.isNotEmpty() ||
+                    details.acts.isNotEmpty() ||
+                    details.caseHistory.isNotEmpty() ||
+                    details.transferDetails.isNotEmpty()
+            } == true
+            _detailState.value = ECourtDetailUiState.Success(
+                if (hasParsedData) {
+                    parsedFromSearch!!
+                } else {
+                    ECourtCaseDetails(
+                        caseTitle = item.caseTitle,
+                        caseNumber = item.caseNumber,
+                        courtName = item.courtName,
+                        courtType = item.courtType,
+                        parties = item.parties,
+                        stage = item.stage.takeIf { it.isNotBlank() },
+                        nextHearingDate = item.nextHearingDate.takeIf { it.isNotBlank() },
+                        caseDetails = emptyList(),
+                        caseStatus = emptyList(),
+                        petitionerAdvocate = emptyList(),
+                        respondentAdvocate = emptyList(),
+                        acts = emptyList(),
+                        caseHistory = emptyList(),
+                        transferDetails = emptyList()
+                    )
+                }
+            )
             return
         }
         _detailState.value = ECourtDetailUiState.Loading

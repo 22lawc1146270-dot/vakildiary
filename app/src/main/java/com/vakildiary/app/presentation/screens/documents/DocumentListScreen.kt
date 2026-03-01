@@ -63,7 +63,13 @@ fun DocumentListScreen(
     showTopBar: Boolean = true,
     showBack: Boolean = false,
     onBack: () -> Unit = {},
-    onDownloadReportable: (judgmentId: String, caseNumber: String?, year: String?) -> Unit = { _, _, _ -> },
+    onDownloadReportable: (
+        judgmentId: String,
+        caseNumber: String?,
+        year: String?,
+        petitionerName: String?,
+        judgmentDate: String?
+    ) -> Unit = { _, _, _, _, _ -> },
     viewModel: DocumentListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState(caseId).collectAsStateWithLifecycle()
@@ -291,8 +297,17 @@ fun DocumentListScreen(
                                             onDownloadReportable = {
                                                 val caseNumber = DocumentTags.judgmentCaseNumber(doc.tags)
                                                 val year = DocumentTags.judgmentYear(doc.tags)
+                                                val petitioner = DocumentTags.judgmentPetitioner(doc.tags)
+                                                    ?: extractPetitionerFromFileName(doc.fileName)
+                                                val judgmentDate = DocumentTags.judgmentDate(doc.tags)
                                                 if (judgmentId != null) {
-                                                    onDownloadReportable(judgmentId, caseNumber, year)
+                                                    onDownloadReportable(
+                                                        judgmentId,
+                                                        caseNumber,
+                                                        year,
+                                                        petitioner,
+                                                        judgmentDate
+                                                    )
                                                 } else {
                                                     Toast.makeText(
                                                         context,
@@ -722,6 +737,14 @@ private fun getFileInfo(context: Context, uri: Uri): FileInfo? {
     val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize }
     if (size == null || size <= 0) return null
     return FileInfo(sizeBytes = size, mimeType = mimeType)
+}
+
+private fun extractPetitionerFromFileName(fileName: String): String? {
+    val base = fileName.substringBeforeLast('.').trim()
+    if (base.isBlank()) return null
+    val separatorRegex = Regex("\\s+[vV]\\.?\\s+")
+    val petitioner = base.split(separatorRegex, limit = 2).firstOrNull()?.trim().orEmpty()
+    return petitioner.takeIf { it.isNotBlank() }
 }
 
 private data class FileInfo(val sizeBytes: Long, val mimeType: String)

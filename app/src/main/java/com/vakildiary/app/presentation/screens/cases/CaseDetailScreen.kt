@@ -43,8 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.HearingHistory
 import com.vakildiary.app.presentation.viewmodels.CaseDetailViewModel
 import com.vakildiary.app.presentation.viewmodels.CaseExportViewModel
@@ -55,6 +57,7 @@ import com.vakildiary.app.presentation.screens.meetings.MeetingListScreen
 import com.vakildiary.app.presentation.viewmodels.FeesViewModel
 import com.vakildiary.app.presentation.viewmodels.state.FeeExportUiState
 import com.vakildiary.app.core.ShareUtils
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 import com.vakildiary.app.presentation.viewmodels.state.CaseExportUiState
 import com.vakildiary.app.presentation.components.ButtonLabel
 import java.time.Instant
@@ -88,6 +91,8 @@ fun CaseDetailScreen(
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteOption by remember { mutableStateOf(CaseDeleteOption.ARCHIVE) }
+    var successMessageResId by remember { mutableStateOf<Int?>(null) }
+    var shouldNavigateAfterSuccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(summaryState) {
         val state = summaryState
@@ -156,23 +161,65 @@ fun CaseDetailScreen(
                             onExportHistory = { exportViewModel.exportHistory(state.case, state.hearings) },
                             onUpdateNextHearing = { newDate ->
                                 scope.launch {
-                                    viewModel.updateCase(state.case.copy(nextHearingDate = newDate))
+                                    when (val result = viewModel.updateCase(state.case.copy(nextHearingDate = newDate))) {
+                                        is com.vakildiary.app.core.Result.Success -> {
+                                            successMessageResId = R.string.hearing_updated_success_message
+                                            shouldNavigateAfterSuccess = false
+                                        }
+                                        is com.vakildiary.app.core.Result.Error -> {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                result.message,
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 }
                             },
                             onStageChanged = { newStage ->
                                 scope.launch {
                                     val customStage = if (newStage == CaseStage.CUSTOM) state.case.customStage else null
-                                    viewModel.updateCase(state.case.copy(caseStage = newStage, customStage = customStage))
+                                    when (
+                                        val result = viewModel.updateCase(
+                                            state.case.copy(caseStage = newStage, customStage = customStage)
+                                        )
+                                    ) {
+                                        is com.vakildiary.app.core.Result.Success -> {
+                                            successMessageResId = R.string.case_updated_success_message
+                                            shouldNavigateAfterSuccess = false
+                                        }
+                                        is com.vakildiary.app.core.Result.Error -> {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                result.message,
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 }
                             },
                             onCustomStageChanged = { custom ->
                                 scope.launch {
-                                    viewModel.updateCase(
-                                        state.case.copy(
-                                            caseStage = CaseStage.CUSTOM,
-                                            customStage = custom.trim().ifBlank { null }
+                                    when (
+                                        val result = viewModel.updateCase(
+                                            state.case.copy(
+                                                caseStage = CaseStage.CUSTOM,
+                                                customStage = custom.trim().ifBlank { null }
+                                            )
                                         )
-                                    )
+                                    ) {
+                                        is com.vakildiary.app.core.Result.Success -> {
+                                            successMessageResId = R.string.case_updated_success_message
+                                            shouldNavigateAfterSuccess = false
+                                        }
+                                        is com.vakildiary.app.core.Result.Error -> {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                result.message,
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 }
                             },
                             onDelete = {
@@ -199,7 +246,7 @@ fun CaseDetailScreen(
                         4 -> DocumentListScreen(
                             caseId = caseId,
                             showTopBar = false,
-                            onDownloadReportable = { _, _, _ -> }
+                            onDownloadReportable = { _, _, _, _, _ -> }
                         )
                         else -> MeetingsTab(
                             caseId = caseId,
@@ -254,9 +301,12 @@ fun CaseDetailScreen(
                             CaseDeleteOption.PERMANENT -> viewModel.deleteCase(caseId)
                         }
                         if (result is com.vakildiary.app.core.Result.Success) {
-                            if (deleteOption == CaseDeleteOption.PERMANENT) {
-                                onCaseDeleted()
+                            successMessageResId = if (deleteOption == CaseDeleteOption.PERMANENT) {
+                                R.string.case_deleted_success_message
+                            } else {
+                                R.string.case_archived_success_message
                             }
+                            shouldNavigateAfterSuccess = deleteOption == CaseDeleteOption.PERMANENT
                         } else if (result is com.vakildiary.app.core.Result.Error) {
                             android.widget.Toast.makeText(
                                 context,
@@ -274,6 +324,22 @@ fun CaseDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { ButtonLabel(text = "Cancel") }
+            }
+        )
+    }
+
+    successMessageResId?.let { messageRes ->
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.action_success_title),
+            message = stringResource(id = messageRes),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = {
+                val shouldNavigate = shouldNavigateAfterSuccess
+                successMessageResId = null
+                shouldNavigateAfterSuccess = false
+                if (shouldNavigate) {
+                    onCaseDeleted()
+                }
             }
         )
     }

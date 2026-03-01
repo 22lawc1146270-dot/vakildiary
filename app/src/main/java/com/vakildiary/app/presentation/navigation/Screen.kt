@@ -94,19 +94,25 @@ sealed class Screen(val route: String) {
     object ECourtSearch : Screen("ecourt_search")
     object JudgmentSearch : Screen("judgment_search")
     object ReportableJudgment : Screen(
-        "reportable_judgment?judgmentId={judgmentId}&caseNumber={caseNumber}&year={year}"
+        "reportable_judgment?judgmentId={judgmentId}&caseNumber={caseNumber}&year={year}" +
+            "&petitionerName={petitionerName}&judgmentDate={judgmentDate}"
     ) {
         const val ARG_JUDGMENT_ID = "judgmentId"
         const val ARG_CASE_NUMBER = "caseNumber"
         const val ARG_YEAR = "year"
+        const val ARG_PETITIONER_NAME = "petitionerName"
+        const val ARG_JUDGMENT_DATE = "judgmentDate"
 
         fun createRoute(
             judgmentId: String,
             caseNumber: String? = null,
-            year: String? = null
+            year: String? = null,
+            petitionerName: String? = null,
+            judgmentDate: String? = null
         ): String {
             return "reportable_judgment?judgmentId=${encode(judgmentId)}" +
-                "&caseNumber=${encode(caseNumber)}&year=${encode(year)}"
+                "&caseNumber=${encode(caseNumber)}&year=${encode(year)}" +
+                "&petitionerName=${encode(petitionerName)}&judgmentDate=${encode(judgmentDate)}"
         }
     }
     object Dashboard : Screen("dashboard")

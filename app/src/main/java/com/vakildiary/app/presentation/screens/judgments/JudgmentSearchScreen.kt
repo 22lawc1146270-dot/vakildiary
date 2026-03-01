@@ -52,9 +52,14 @@ import com.vakildiary.app.presentation.viewmodels.JudgmentDownloadUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSyncState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchUiState
 import com.vakildiary.app.presentation.viewmodels.JudgmentSearchViewModel
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.util.rememberIsOnline
 import java.time.Year
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +85,7 @@ fun JudgmentSearchScreen(
     val context = LocalContext.current
     var pendingAction by remember { mutableStateOf<JudgmentFileAction?>(null) }
     var pendingDocument by remember { mutableStateOf<Document?>(null) }
+    var showDownloadSuccessDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.fileEvents.collect { result ->
@@ -100,6 +106,13 @@ fun JudgmentSearchScreen(
                     Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    LaunchedEffect(downloadState) {
+        val state = downloadState
+        if (state is JudgmentDownloadUiState.Success && state.document != null) {
+            showDownloadSuccessDialog = true
         }
     }
 
@@ -220,14 +233,6 @@ fun JudgmentSearchScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                     is JudgmentDownloadUiState.Success -> {
-                        if (state.document != null) {
-                            Text(
-                                text = stringResource(id = R.string.judgment_download_success_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
                         val document = state.document
                         if (document != null) {
                             Row(
@@ -291,8 +296,7 @@ fun JudgmentSearchScreen(
                             onPreview = {
                                 previewItem = item
                                 showPreview = true
-                            },
-                            selectedYear = year
+                            }
                         )
                     }
                 }
@@ -305,10 +309,18 @@ fun JudgmentSearchScreen(
             JudgmentPreview(
                 item = previewItem!!,
                 canDownload = isOnline,
-                onDownload = { viewModel.download(previewItem!!, year) },
-                selectedYear = year
+                onDownload = { viewModel.download(previewItem!!, year) }
             )
         }
+    }
+
+    if (showDownloadSuccessDialog) {
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.action_success_title),
+            message = stringResource(id = R.string.judgment_download_success_message),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = { showDownloadSuccessDialog = false }
+        )
     }
 }
 
@@ -317,78 +329,55 @@ private fun JudgmentRow(
     item: JudgmentSearchResult,
     canDownload: Boolean,
     onDownload: () -> Unit,
-    onPreview: () -> Unit,
-    selectedYear: String
+    onPreview: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            val heading = remember(item, selectedYear) {
-                val p = item.petitioner?.trim().orEmpty()
-                val r = item.respondent?.trim().orEmpty()
-                val yearLabel = item.dateOfJudgment?.let { extractYear(it) } ?: selectedYear
-                val citation = item.citation?.trim().orEmpty()
-                
-                buildString {
-                    if (p.isNotBlank() && r.isNotBlank()) {
-                        append(p)
-                        append(" v. ")
-                        append(r)
-                    } else if (p.isNotBlank()) {
-                        append(p)
-                    } else if (r.isNotBlank()) {
-                        append(r)
-                    }
-                    
-                    if (isEmpty()) {
-                        append(item.title)
-                    }
+            val heading = remember(item) { buildJudgmentHeading(item) }
+            val caseType = remember(item) { resolveCaseType(item) }
+            val citation = remember(item) { item.citation?.trim().orEmpty() }
+            val judgmentDate = remember(item) { formatJudgmentDate(item.dateOfJudgment) }
+            val coramLine = remember(item) { resolveCoramLabel(item) }
+            val judgesLine = remember(coramLine) { resolveJudgesName(coramLine) }
 
-                    if (yearLabel.isNotBlank()) {
-                        append(" (")
-                        append(yearLabel)
-                        append(")")
-                    }
-
-                    if (citation.isNotBlank()) {
-                        append(" ")
-                        append(citation)
-                    }
-                }
-            }
-            
             Text(
-                text = heading, 
+                text = heading,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            
-            if (!item.coram.isNullOrBlank()) {
+
+            if (caseType != null || citation.isNotBlank()) {
                 Text(
-                    text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}",
+                    text = buildCaseTypeWithCitation(
+                        caseType = caseType,
+                        citation = citation,
+                        caseTypeLabel = stringResource(id = R.string.judgment_case_type),
+                        citationLabel = stringResource(id = R.string.judgment_citation)
+                    ),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            item.dateOfJudgment?.let { date ->
+            if (judgmentDate != null) {
                 Text(
-                    text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}",
+                    text = "${stringResource(id = R.string.judgment_date)}: $judgmentDate",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            if (!item.bench.isNullOrBlank()) {
+            if (!coramLine.isNullOrBlank()) {
                 Text(
-                    text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}",
+                    text = "${stringResource(id = R.string.judgment_coram)}: $coramLine",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            if (!item.caseNumber.isNullOrBlank()) {
+            if (!judgesLine.isNullOrBlank()) {
                 Text(
-                    text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}",
+                    text = "${stringResource(id = R.string.judgment_judges_name)}: $judgesLine",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -419,67 +408,46 @@ private fun JudgmentRow(
 private fun JudgmentPreview(
     item: JudgmentSearchResult,
     canDownload: Boolean,
-    onDownload: () -> Unit,
-    selectedYear: String
+    onDownload: () -> Unit
 ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val heading = remember(item, selectedYear) {
-                val p = item.petitioner?.trim().orEmpty()
-                val r = item.respondent?.trim().orEmpty()
-                val yearLabel = item.dateOfJudgment?.let { extractYear(it) } ?: selectedYear
-                val citation = item.citation?.trim().orEmpty()
-                
-                buildString {
-                    if (p.isNotBlank() && r.isNotBlank()) {
-                        append(p)
-                        append(" v. ")
-                        append(r)
-                    } else if (p.isNotBlank()) {
-                        append(p)
-                    } else if (r.isNotBlank()) {
-                        append(r)
-                    }
-                    
-                    if (isEmpty()) {
-                        append(item.title)
-                    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val heading = remember(item) { buildJudgmentHeading(item) }
+        val caseType = remember(item) { resolveCaseType(item) }
+        val citation = remember(item) { item.citation?.trim().orEmpty() }
+        val judgmentDate = remember(item) { formatJudgmentDate(item.dateOfJudgment) }
+        val coramLine = remember(item) { resolveCoramLabel(item) }
+        val judgesLine = remember(coramLine) { resolveJudgesName(coramLine) }
 
-                    if (yearLabel.isNotBlank()) {
-                        append(" (")
-                        append(yearLabel)
-                        append(")")
-                    }
+        Text(
+            text = heading,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
 
-                    if (citation.isNotBlank()) {
-                        append(" ")
-                        append(citation)
-                    }
-                }
-            }
-            
+        if (caseType != null || citation.isNotBlank()) {
             Text(
-                text = heading, 
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                text = buildCaseTypeWithCitation(
+                    caseType = caseType,
+                    citation = citation,
+                    caseTypeLabel = stringResource(id = R.string.judgment_case_type),
+                    citationLabel = stringResource(id = R.string.judgment_citation)
+                )
             )
-            
-            if (!item.coram.isNullOrBlank()) {
-                Text(text = "${stringResource(id = R.string.judgment_coram)}: ${item.coram}")
-            }
-            item.dateOfJudgment?.let { date ->
-                Text(text = "${stringResource(id = R.string.judgment_date)}: ${formatDate(date)}")
-            }
-            if (!item.bench.isNullOrBlank()) {
-                Text(text = "${stringResource(id = R.string.judgment_bench)}: ${item.bench}")
-            }
-            if (!item.caseNumber.isNullOrBlank()) {
-                Text(text = "${stringResource(id = R.string.judgment_case_number)}: ${item.caseNumber}")
-            }
+        }
+        if (judgmentDate != null) {
+            Text(text = "${stringResource(id = R.string.judgment_date)}: $judgmentDate")
+        }
+        if (!coramLine.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.judgment_coram)}: $coramLine")
+        }
+        if (!judgesLine.isNullOrBlank()) {
+            Text(text = "${stringResource(id = R.string.judgment_judges_name)}: $judgesLine")
+        }
         Button(
             onClick = onDownload,
             modifier = Modifier.fillMaxWidth(),
@@ -490,19 +458,77 @@ private fun JudgmentPreview(
     }
 }
 
-private fun formatDate(epochMillis: Long): String {
-    val date = java.time.Instant.ofEpochMilli(epochMillis)
-        .atZone(java.time.ZoneId.systemDefault())
-        .toLocalDate()
-    return date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+private fun buildJudgmentHeading(item: JudgmentSearchResult): String {
+    val petitioner = item.petitioner?.trim().orEmpty()
+    val respondent = item.respondent?.trim().orEmpty()
+    val citation = item.citation?.trim().orEmpty()
+    val title = when {
+        petitioner.isNotBlank() && respondent.isNotBlank() -> "$petitioner v. $respondent"
+        petitioner.isNotBlank() -> petitioner
+        respondent.isNotBlank() -> respondent
+        else -> item.title
+    }
+    return if (citation.isNotBlank()) "$title ($citation)" else title
 }
 
-private fun extractYear(epochMillis: Long): String {
-    return java.time.Instant.ofEpochMilli(epochMillis)
-        .atZone(java.time.ZoneId.systemDefault())
+private fun buildCaseTypeWithCitation(
+    caseType: String?,
+    citation: String,
+    caseTypeLabel: String,
+    citationLabel: String
+): String {
+    val parts = mutableListOf<String>()
+    if (!caseType.isNullOrBlank()) {
+        parts += "$caseTypeLabel: $caseType"
+    }
+    if (citation.isNotBlank()) {
+        parts += "$citationLabel: $citation"
+    }
+    return parts.joinToString(" | ")
+}
+
+private fun resolveCaseType(item: JudgmentSearchResult): String? {
+    val caseNumber = item.caseNumber?.trim().orEmpty()
+    if (caseNumber.isBlank()) return null
+    val normalized = caseNumber.replace(Regex("\\s+"), " ")
+    val noIndex = Regex("\\bNo\\.?\\b", RegexOption.IGNORE_CASE).find(normalized)?.range?.first
+    val digitIndex = Regex("\\d").find(normalized)?.range?.first
+    val splitIndex = listOfNotNull(noIndex, digitIndex).minOrNull() ?: normalized.length
+    return normalized.substring(0, splitIndex).trim().ifBlank { null }
+}
+
+private fun resolveCoramLabel(item: JudgmentSearchResult): String? {
+    val coram = item.coram?.trim().orEmpty()
+    if (coram.isNotBlank()) return coram
+    val bench = item.bench?.trim().orEmpty()
+    return bench.ifBlank { null }
+}
+
+private fun resolveJudgesName(coramLabel: String?): String? {
+    if (coramLabel.isNullOrBlank()) return null
+    val names = coramLabel
+        .split(Regex(",|;|\\n|\\band\\b", RegexOption.IGNORE_CASE))
+        .map { segment ->
+            segment
+                .replace(Regex("(?i)hon'?ble\\s*"), "")
+                .replace(Regex("(?i)mr\\.?\\s+justice\\s+"), "")
+                .replace(Regex("(?i)mrs\\.?\\s+justice\\s+"), "")
+                .replace(Regex("(?i)ms\\.?\\s+justice\\s+"), "")
+                .replace(Regex("(?i)justice\\s+"), "")
+                .trim()
+        }
+        .filter { it.isNotBlank() }
+        .distinct()
+    return if (names.isEmpty()) null else names.joinToString(", ")
+}
+
+private fun formatJudgmentDate(epochMillis: Long?): String? {
+    if (epochMillis == null) return null
+    val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
+    return Instant.ofEpochMilli(epochMillis)
+        .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .year
-        .toString()
+        .format(formatter)
 }
 
 private enum class JudgmentFileAction { OPEN, SHARE }

@@ -80,6 +80,10 @@ class UserPreferencesRepository @Inject constructor(
         preferences[KEY_ADVOCATE_NAME]
     }
 
+    val isFreeTextInfoDialogDismissed: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_FREE_TEXT_INFO_DIALOG_DISMISSED] ?: false
+    }
+
     suspend fun setUserEmail(email: String) {
         dataStore.edit { preferences ->
             preferences[KEY_USER_EMAIL] = email
@@ -172,6 +176,12 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    suspend fun setFreeTextInfoDialogDismissed(isDismissed: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[KEY_FREE_TEXT_INFO_DIALOG_DISMISSED] = isDismissed
+        }
+    }
+
     private fun parseBackupLog(raw: String?): List<BackupLogEntry> {
         if (raw.isNullOrBlank()) return emptyList()
         return raw.lines().mapNotNull { line ->
@@ -197,6 +207,8 @@ class UserPreferencesRepository @Inject constructor(
         private val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
         private val KEY_LANGUAGE_MODE = stringPreferencesKey("language_mode")
         private val KEY_ADVOCATE_NAME = stringPreferencesKey("advocate_name")
+        private val KEY_FREE_TEXT_INFO_DIALOG_DISMISSED =
+            booleanPreferencesKey("free_text_info_dialog_dismissed")
         private val KEY_BACKUP_SCHEDULE = stringPreferencesKey("backup_schedule")
         private val KEY_LAST_BACKUP_TIME = longPreferencesKey("last_backup_time")
         private val KEY_LAST_BACKUP_SIZE_BYTES = longPreferencesKey("last_backup_size_bytes")

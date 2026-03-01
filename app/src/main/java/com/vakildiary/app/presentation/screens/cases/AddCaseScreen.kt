@@ -27,6 +27,7 @@ import com.vakildiary.app.domain.model.displayLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 import com.vakildiary.app.presentation.components.ButtonLabel
 import kotlinx.coroutines.flow.collectLatest
 
@@ -254,15 +255,13 @@ fun AddCaseScreen(
     }
 
     if (uiState is AddCaseUiState.Success && (uiState as AddCaseUiState.Success).isSaved) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text(text = stringResource(id = R.string.case_register_success_title)) },
-            text = { Text(text = stringResource(id = R.string.case_register_success_message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.resetState()
-                    onRegistered()
-                }) { ButtonLabel(text = stringResource(id = R.string.case_register_ok)) }
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.case_register_success_title),
+            message = stringResource(id = R.string.case_register_success_message),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = {
+                viewModel.resetState()
+                onRegistered()
             }
         )
     }

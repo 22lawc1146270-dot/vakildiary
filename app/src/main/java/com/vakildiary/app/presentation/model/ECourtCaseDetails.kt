@@ -23,14 +23,23 @@ object ECourtDetailParser {
     fun parse(raw: String, item: ECourtCaseItem): ECourtCaseDetails {
         val heading = extractById(raw, "chHeading")
         val caseDetails = extractTableByClass(raw, "case_details_table")
-            .ifEmpty { extractSection(raw, "Case Details") }
+            .ifEmpty { extractSectionByTitles(raw, listOf("Case Details")) }
         val caseStatus = extractTableByClass(raw, "case_status_table")
-            .ifEmpty { extractSection(raw, "Case Status") }
+            .ifEmpty { extractSectionByTitles(raw, listOf("Case Status")) }
         val petitionerAdvocate = extractListByClass(raw, "petitioner-advocate-list")
+            .ifEmpty { extractSectionByTitles(raw, listOf("Petitioner and Advocate")) }
         val respondentAdvocate = extractListByClass(raw, "respondent-advocate-list")
+            .ifEmpty { extractSectionByTitles(raw, listOf("Respondent and Advocate")) }
         val caseHistory = extractTableByClass(raw, "history_table")
+            .ifEmpty { extractSectionByTitles(raw, listOf("Case History")) }
         val transferDetails = extractTableByClass(raw, "transfer_table")
-        val acts = extractSection(raw, "Acts")
+            .ifEmpty {
+                extractSectionByTitles(
+                    raw,
+                    listOf("Case Transfer Details within Establishment", "Transfer Details")
+                )
+            }
+        val acts = extractSectionByTitles(raw, listOf("Acts"))
         return ECourtCaseDetails(
             caseTitle = heading.ifBlank { item.caseTitle },
             caseNumber = item.caseNumber,
@@ -47,6 +56,14 @@ object ECourtDetailParser {
             caseHistory = caseHistory,
             transferDetails = transferDetails
         )
+    }
+
+    private fun extractSectionByTitles(raw: String, titles: List<String>): List<String> {
+        titles.forEach { title ->
+            val lines = extractSection(raw, title)
+            if (lines.isNotEmpty()) return lines
+        }
+        return emptyList()
     }
 
     private fun extractSection(raw: String, title: String): List<String> {

@@ -21,7 +21,9 @@ class DownloadJudgmentUseCase @Inject constructor(
             judgmentId = judgment.judgmentId,
             year = year,
             caseNumber = judgment.caseNumber,
-            reportable = false
+            reportable = false,
+            petitioner = judgment.petitioner,
+            judgmentDate = judgment.dateOfJudgment?.toString()
         )
         return when (val result = repository.downloadJudgment(judgment.judgmentId)) {
             is Result.Success -> {

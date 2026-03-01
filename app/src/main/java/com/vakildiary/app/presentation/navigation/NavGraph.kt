@@ -218,12 +218,14 @@ fun AppNavGraph(
         }
         composable(Screen.Documents.route) {
             DocumentListScreen(
-                onDownloadReportable = { judgmentId, caseNumber, year ->
+                onDownloadReportable = { judgmentId, caseNumber, year, petitionerName, judgmentDate ->
                     navController.navigate(
                         Screen.ReportableJudgment.createRoute(
                             judgmentId = judgmentId,
                             caseNumber = caseNumber,
-                            year = year
+                            year = year,
+                            petitionerName = petitionerName,
+                            judgmentDate = judgmentDate
                         )
                     )
                 }
@@ -245,16 +247,28 @@ fun AppNavGraph(
             arguments = listOf(
                 navArgument(Screen.ReportableJudgment.ARG_JUDGMENT_ID) { defaultValue = "" },
                 navArgument(Screen.ReportableJudgment.ARG_CASE_NUMBER) { defaultValue = ""; nullable = true },
-                navArgument(Screen.ReportableJudgment.ARG_YEAR) { defaultValue = ""; nullable = true }
+                navArgument(Screen.ReportableJudgment.ARG_YEAR) { defaultValue = ""; nullable = true },
+                navArgument(Screen.ReportableJudgment.ARG_PETITIONER_NAME) {
+                    defaultValue = ""
+                    nullable = true
+                },
+                navArgument(Screen.ReportableJudgment.ARG_JUDGMENT_DATE) {
+                    defaultValue = ""
+                    nullable = true
+                }
             )
         ) { entry ->
             val judgmentId = entry.arguments?.getString(Screen.ReportableJudgment.ARG_JUDGMENT_ID).orEmpty()
             val caseNumber = entry.arguments?.getString(Screen.ReportableJudgment.ARG_CASE_NUMBER)
             val year = entry.arguments?.getString(Screen.ReportableJudgment.ARG_YEAR)
+            val petitionerName = entry.arguments?.getString(Screen.ReportableJudgment.ARG_PETITIONER_NAME)
+            val judgmentDate = entry.arguments?.getString(Screen.ReportableJudgment.ARG_JUDGMENT_DATE)
             ReportableJudgmentScreen(
                 judgmentId = judgmentId,
                 caseNumber = caseNumber,
                 year = year,
+                petitionerName = petitionerName,
+                judgmentDate = judgmentDate,
                 onBack = { navController.popBackStack() },
                 onOpenDocuments = {
                     val popped = navController.popBackStack(Screen.Documents.route, false)

@@ -84,65 +84,214 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         if (judgmentMetadataDao.countByYear(year) > 0) return@withContext
         judgmentMetadataDao.deleteByYear(year)
         val yearString = year.toString()
-        val metadataIndex = service.getMetadataIndex(yearString)
-        val englishIndex = service.getEnglishIndex(yearString)
-        val fileToArchive = buildArchiveLookup(englishIndex.parts)
+        val englishIndex = try {
+            service.getEnglishIndex(yearString)
+        } catch (t: Throwable) {
+            if (t is HttpException && t.code() == 404) return@withContext
+            throw t
+        }
+        val metadataIndex = try {
+            service.getMetadataIndex(yearString)
+        } catch (t: Throwable) {
+            if (t is HttpException && t.code() == 404) null else throw t
+        }
+        val archiveByFile = buildArchiveLookup(englishIndex.parts)
+        val indexedFiles = archiveByFile.entries.associate { entry ->
+            entry.key.lowercase() to IndexedArchiveFile(
+                fileName = entry.key,
+                archiveName = entry.value
+            )
+        }
         val syncedAt = System.currentTimeMillis()
-        metadataIndex.parts.forEach { part ->
+        val entitiesById = linkedMapOf<String, JudgmentMetadataEntity>()
+
+        metadataIndex?.parts?.forEach { part ->
             val partName = part.partName() ?: return@forEach
             val partPath = "data/zip/year=$yearString/$partName"
-            val entities = mutableListOf<JudgmentMetadataEntity>()
-            service.downloadArchive(partPath).use { body ->
-                val payload = readMetadataPayload(partName, body)
-                val entries = parseMetadataPayload(payload)
+            runCatching {
+                service.downloadArchive(partPath).use { body ->
+                    val payload = readMetadataPayload(partName, body)
+                    parseMetadataPayload(payload)
+                }
+            }.onSuccess { entries ->
                 entries.forEach { dto ->
-                    val path = dto.path?.trim().orEmpty()
-                    if (path.isBlank()) return@forEach
-                    val fileName = "${path}_EN.pdf"
-                    val fileArchive = fileToArchive[fileName] ?: return@forEach
-                    val parsed = if (!dto.rawHtml.isNullOrBlank()) {
-                        parseMetadata(dto.rawHtml)
-                    } else {
-                        ParsedMetadata.empty()
-                    }
+                    val indexed = resolveIndexedArchiveFile(dto, indexedFiles) ?: return@forEach
+                    val parsed = dto.rawHtml
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(::parseMetadata)
+                        ?: ParsedMetadata.empty()
                     val petitioner = dto.petitioner?.ifBlank { null } ?: parsed.petitioner
                     val respondent = dto.respondent?.ifBlank { null } ?: parsed.respondent
-                    val caseId = dto.caseId?.ifBlank { null } ?: parsed.caseNumber
-                    val citation = dto.citation?.ifBlank { null } ?: dto.citationDisplay?.ifBlank { null }
+                    val caseId = dto.caseId?.ifBlank { null }
+                        ?: parsed.caseNumber
+                        ?: extractCaseIdFromFileName(indexed.fileName)
+                    val citation = dto.citationDisplay?.ifBlank { null }
+                        ?: dto.citation?.ifBlank { null }
                     val decisionDate = parseDecisionDateValue(dto.decisionDate) ?: parsed.decisionDate
-                    val title = caseId?.ifBlank { null }
-                        ?: citation?.ifBlank { null }
-                        ?: fileName.removeSuffix(".pdf").replace('_', ' ')
+                    val title = buildTitle(
+                        petitioner = petitioner,
+                        respondent = respondent,
+                        citation = citation,
+                        caseId = caseId,
+                        fallbackFileName = indexed.fileName
+                    )
                     val searchText = buildSearchText(
                         petitioner = petitioner,
                         respondent = respondent,
                         caseId = caseId,
-                        citation = citation
+                        citation = citation,
+                        title = title,
+                        coram = parsed.coram,
+                        bench = parsed.bench,
+                        rawText = parsed.rawText
                     )
-                    entities.add(
-                        JudgmentMetadataEntity(
-                            judgmentId = fileName,
-                            title = title,
-                            citation = citation,
-                            bench = parsed.bench,
-                            coram = parsed.coram,
-                            caseNumber = caseId,
-                            petitioner = petitioner,
-                            respondent = respondent,
-                            year = year,
-                            archiveName = fileArchive,
-                            fileName = fileName,
-                            dateOfJudgment = decisionDate,
-                            searchText = searchText,
-                            syncedAt = syncedAt
-                        )
+                    entitiesById[indexed.fileName] = JudgmentMetadataEntity(
+                        judgmentId = indexed.fileName,
+                        title = title,
+                        citation = citation,
+                        bench = parsed.bench,
+                        coram = parsed.coram,
+                        caseNumber = caseId,
+                        petitioner = petitioner,
+                        respondent = respondent,
+                        year = year,
+                        archiveName = indexed.archiveName,
+                        fileName = indexed.fileName,
+                        dateOfJudgment = decisionDate,
+                        searchText = searchText,
+                        syncedAt = syncedAt
                     )
                 }
-            }
-            if (entities.isNotEmpty()) {
-                judgmentMetadataDao.upsertAll(entities)
+            }.onFailure { error ->
+                Log.w(TAG, "Failed parsing metadata part: $partPath", error)
             }
         }
+
+        archiveByFile.forEach { (fileName, archiveName) ->
+            if (entitiesById.containsKey(fileName)) return@forEach
+            entitiesById[fileName] = createFallbackEntity(
+                fileName = fileName,
+                archiveName = archiveName,
+                year = year,
+                syncedAt = syncedAt
+            )
+        }
+
+        if (entitiesById.isNotEmpty()) {
+            judgmentMetadataDao.upsertAll(entitiesById.values.toList())
+        }
+    }
+
+    private fun extractCaseIdFromFileName(fileName: String): String? {
+        return fileName
+            .removeSuffix(".pdf")
+            .removeSuffix("_EN")
+            .trim()
+            .takeIf { it.isNotBlank() }
+    }
+
+    private fun resolveIndexedArchiveFile(
+        dto: JudgmentMetadataDto,
+        indexedFiles: Map<String, IndexedArchiveFile>
+    ): IndexedArchiveFile? {
+        val candidates = buildFileNameCandidates(dto)
+        candidates.forEach { candidate ->
+            indexedFiles[candidate.lowercase()]?.let { return it }
+        }
+        val normalizedCaseId = dto.caseId
+            ?.replace(Regex("[^A-Za-z0-9]+"), "_")
+            ?.trim('_')
+            ?.lowercase()
+            ?: return null
+        return indexedFiles.entries
+            .firstOrNull { (fileName, _) -> fileName.contains(normalizedCaseId) }
+            ?.value
+    }
+
+    private fun buildFileNameCandidates(dto: JudgmentMetadataDto): Set<String> {
+        val candidates = linkedSetOf<String>()
+        val path = dto.path?.trim().orEmpty()
+        if (path.isNotBlank()) {
+            val normalizedPath = path.replace('\\', '/')
+            val baseName = normalizedPath.substringAfterLast('/')
+            addFileCandidates(baseName, candidates)
+            addFileCandidates("${baseName}_EN", candidates)
+        }
+        val caseId = dto.caseId?.trim().orEmpty()
+        if (caseId.isNotBlank()) {
+            addFileCandidates(caseId, candidates)
+            addFileCandidates(caseId.replace(Regex("\\s+"), "_"), candidates)
+            addFileCandidates(caseId.replace(Regex("[^A-Za-z0-9]+"), "_").trim('_'), candidates)
+        }
+        return candidates
+    }
+
+    private fun addFileCandidates(value: String, target: MutableSet<String>) {
+        val cleaned = value.trim().replace('\\', '/').substringAfterLast('/').trim()
+        if (cleaned.isBlank()) return
+        if (cleaned.endsWith(".pdf", ignoreCase = true)) {
+            target += cleaned
+            return
+        }
+        target += "$cleaned.pdf"
+        target += "${cleaned}_EN.pdf"
+    }
+
+    private fun createFallbackEntity(
+        fileName: String,
+        archiveName: String,
+        year: Int,
+        syncedAt: Long
+    ): JudgmentMetadataEntity {
+        val caseId = extractCaseIdFromFileName(fileName)
+        val title = fileName.removeSuffix(".pdf").replace('_', ' ')
+        return JudgmentMetadataEntity(
+            judgmentId = fileName,
+            title = title,
+            citation = null,
+            bench = null,
+            coram = null,
+            caseNumber = caseId,
+            petitioner = null,
+            respondent = null,
+            year = year,
+            archiveName = archiveName,
+            fileName = fileName,
+            dateOfJudgment = null,
+            searchText = buildSearchText(
+                petitioner = null,
+                respondent = null,
+                caseId = caseId,
+                citation = title,
+                title = title,
+                coram = null,
+                bench = null,
+                rawText = null
+            ),
+            syncedAt = syncedAt
+        )
+    }
+
+    private fun buildTitle(
+        petitioner: String?,
+        respondent: String?,
+        citation: String?,
+        caseId: String?,
+        fallbackFileName: String
+    ): String {
+        val p = petitioner?.trim().orEmpty()
+        val r = respondent?.trim().orEmpty()
+        if (p.isNotBlank() && r.isNotBlank()) {
+            val citationPart = citation?.trim().orEmpty()
+            return if (citationPart.isNotBlank()) {
+                "$p v. $r ($citationPart)"
+            } else {
+                "$p v. $r"
+            }
+        }
+        return caseId?.takeIf { it.isNotBlank() }
+            ?: citation?.takeIf { it.isNotBlank() }
+            ?: fallbackFileName.removeSuffix(".pdf").replace('_', ' ')
     }
 
     private fun buildArchiveLookup(parts: List<MetadataIndexPartDto>): Map<String, String> {
@@ -187,9 +336,13 @@ class SCJudgmentRepositoryImpl @Inject constructor(
         petitioner: String?,
         respondent: String?,
         caseId: String?,
-        citation: String?
+        citation: String?,
+        title: String?,
+        coram: String?,
+        bench: String?,
+        rawText: String?
     ): String {
-        return listOfNotNull(petitioner, respondent, caseId, citation)
+        return listOfNotNull(petitioner, respondent, caseId, citation, title, coram, bench, rawText)
             .joinToString(" ")
             .lowercase()
     }
@@ -347,6 +500,11 @@ class SCJudgmentRepositoryImpl @Inject constructor(
             )
         }
     }
+
+    private data class IndexedArchiveFile(
+        val fileName: String,
+        val archiveName: String
+    )
 
     companion object {
         private const val TAG = "SCJudgmentRepo"

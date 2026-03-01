@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vakildiary.app.core.DocumentTags
 import com.vakildiary.app.core.Result
+import com.vakildiary.app.data.preferences.UserPreferencesRepository
 import com.vakildiary.app.data.remote.reportable.ReportableBackendService
 import com.vakildiary.app.data.remote.reportable.ReportableSubmitRequestDto
 import com.vakildiary.app.domain.model.Document
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -24,13 +26,36 @@ import javax.inject.Inject
 @HiltViewModel
 class ReportableJudgmentViewModel @Inject constructor(
     private val backendService: ReportableBackendService,
-    private val attachDocumentUseCase: AttachDocumentUseCase
+    private val attachDocumentUseCase: AttachDocumentUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
     private val _formState = MutableStateFlow<ReportableFormUiState>(ReportableFormUiState.Loading)
     val formState: StateFlow<ReportableFormUiState> = _formState.asStateFlow()
 
     private val _downloadState = MutableStateFlow<ReportableDownloadUiState>(ReportableDownloadUiState.Idle)
     val downloadState: StateFlow<ReportableDownloadUiState> = _downloadState.asStateFlow()
+
+    private val _showFreeTextInfoDialog = MutableStateFlow(false)
+    val showFreeTextInfoDialog: StateFlow<Boolean> = _showFreeTextInfoDialog.asStateFlow()
+
+    private var infoDialogPrepared = false
+
+    fun prepareFreeTextInfoDialog() {
+        if (infoDialogPrepared) return
+        infoDialogPrepared = true
+        viewModelScope.launch {
+            _showFreeTextInfoDialog.value = !userPreferencesRepository.isFreeTextInfoDialogDismissed.first()
+        }
+    }
+
+    fun onFreeTextInfoAcknowledged(dontShowAgain: Boolean) {
+        viewModelScope.launch {
+            if (dontShowAgain) {
+                userPreferencesRepository.setFreeTextInfoDialogDismissed(true)
+            }
+            _showFreeTextInfoDialog.value = false
+        }
+    }
 
     fun loadForm(caseNumber: String?, year: String?) {
         viewModelScope.launch {
@@ -81,6 +106,31 @@ class ReportableJudgmentViewModel @Inject constructor(
 
     fun resetState() {
         _downloadState.value = ReportableDownloadUiState.Idle
+    }
+
+    fun downloadFromPdfUrl(
+        downloadUrl: String,
+        judgmentId: String,
+        year: String?,
+        caseNumber: String?,
+        petitionerName: String?,
+        judgmentDate: String?
+    ) {
+        if (downloadUrl.isBlank() || _downloadState.value is ReportableDownloadUiState.Loading) return
+        viewModelScope.launch {
+            _downloadState.value = ReportableDownloadUiState.Loading
+            _downloadState.value = withContext(Dispatchers.IO) {
+                downloadReportablePdf(
+                    downloadUrl = downloadUrl,
+                    fileName = null,
+                    judgmentId = judgmentId,
+                    year = year,
+                    caseNumber = caseNumber,
+                    petitionerName = petitionerName,
+                    judgmentDate = judgmentDate
+                )
+            }
+        }
     }
 
     private suspend fun fetchFormData(
@@ -135,7 +185,9 @@ class ReportableJudgmentViewModel @Inject constructor(
         fileName: String?,
         judgmentId: String,
         year: String?,
-        caseNumber: String?
+        caseNumber: String?,
+        petitionerName: String? = null,
+        judgmentDate: String? = null
     ): ReportableDownloadUiState {
         return try {
             val body = backendService.downloadReportable(downloadUrl)
@@ -145,7 +197,9 @@ class ReportableJudgmentViewModel @Inject constructor(
                 judgmentId = judgmentId,
                 year = year,
                 caseNumber = caseNumber,
-                reportable = true
+                reportable = true,
+                petitioner = petitionerName,
+                judgmentDate = judgmentDate
             )
             return when (val result = attachDocumentUseCase(
                 caseId = null,

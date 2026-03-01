@@ -16,10 +16,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.domain.model.TaskType
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddTaskViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddTaskUiState
@@ -184,12 +187,6 @@ fun AddTaskScreen(
         }
     }
 
-    LaunchedEffect(uiState) {
-        if (uiState is AddTaskUiState.Success && (uiState as AddTaskUiState.Success).isSaved) {
-            onBack()
-        }
-    }
-
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
         DatePickerDialog(
@@ -217,6 +214,18 @@ fun AddTaskScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (uiState is AddTaskUiState.Success && (uiState as AddTaskUiState.Success).isSaved) {
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.action_success_title),
+            message = stringResource(id = R.string.task_added_success_message),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = {
+                viewModel.resetState()
+                onBack()
+            }
+        )
     }
 }
 

@@ -42,6 +42,9 @@ import com.vakildiary.app.presentation.viewmodels.EditCaseViewModel
 import com.vakildiary.app.presentation.viewmodels.state.AddCaseUiState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.vakildiary.app.R
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -212,6 +215,15 @@ fun EditCaseScreen(
                 ButtonLabel(text = if (uiState is AddCaseUiState.Loading) "Saving..." else "Save Changes")
             }
         }
+    }
+
+    if (uiState is AddCaseUiState.Success && (uiState as AddCaseUiState.Success).isSaved) {
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.action_success_title),
+            message = stringResource(id = R.string.case_updated_success_message),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = onBack
+        )
     }
 }
 

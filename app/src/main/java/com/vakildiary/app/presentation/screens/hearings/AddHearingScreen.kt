@@ -13,14 +13,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vakildiary.app.R
 import com.vakildiary.app.domain.model.Case
 import com.vakildiary.app.notifications.NotificationScheduler
+import com.vakildiary.app.presentation.components.AnimatedSuccessDialog
 import com.vakildiary.app.presentation.components.ButtonLabel
 import com.vakildiary.app.presentation.theme.VakilTheme
 import com.vakildiary.app.presentation.viewmodels.AddHearingViewModel
@@ -45,6 +48,7 @@ fun AddHearingScreen(
     var dateMillis by remember { mutableStateOf<Long?>(null) }
     var timeText by remember { mutableStateOf("10:00") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
@@ -169,7 +173,7 @@ fun AddHearingScreen(
                     validationError = null
                     val trigger = hearingAt - minutes * 60_000L
                     NotificationScheduler.scheduleHearingReminder(context, case.caseId, trigger)
-                    onBack()
+                    showSuccessDialog = true
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = selectedCase != null && dateMillis != null,
@@ -217,6 +221,15 @@ fun AddHearingScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showSuccessDialog) {
+        AnimatedSuccessDialog(
+            title = stringResource(id = R.string.action_success_title),
+            message = stringResource(id = R.string.hearing_updated_success_message),
+            confirmText = stringResource(id = R.string.case_register_ok),
+            onConfirm = onBack
+        )
     }
 }
 

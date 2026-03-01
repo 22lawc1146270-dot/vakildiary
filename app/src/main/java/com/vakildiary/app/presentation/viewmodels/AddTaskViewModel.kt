@@ -82,4 +82,8 @@ class AddTaskViewModel @Inject constructor(
         if (triggerAt <= System.currentTimeMillis()) return
         NotificationScheduler.scheduleTaskReminder(context, taskId, triggerAt)
     }
+
+    fun resetState() {
+        _uiState.value = AddTaskUiState.Success(false)
+    }
 }

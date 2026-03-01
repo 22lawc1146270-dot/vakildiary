@@ -87,12 +87,26 @@ object ECourtParser {
     }
 
     private fun extractDetailLink(row: String): String? {
-        val anchor = Regex("<a[^>]*>", RegexOption.IGNORE_CASE).find(row)?.value ?: return null
+        Regex("<a[^>]*>", RegexOption.IGNORE_CASE)
+            .findAll(row)
+            .forEach { match ->
+                parseDetailLinkFromAnchor(match.value)?.let { return it }
+            }
+        return Regex("(https?://[^'\"\\s>]*\\?p=casestatus[^'\"\\s>]*)|(/?ecourtindia_v6/\\?p=casestatus[^'\"\\s>]*)|(\\?p=casestatus[^'\"\\s>]*)", RegexOption.IGNORE_CASE)
+            .find(row)
+            ?.value
+            ?.replace("&amp;", "&")
+            ?.replace("\\/", "/")
+            ?.trim()
+    }
+
+    private fun parseDetailLinkFromAnchor(anchor: String): String? {
         val href = Regex("href\\s*=\\s*['\"]([^'\"]+)['\"]", RegexOption.IGNORE_CASE)
             .find(anchor)
             ?.groupValues
             ?.getOrNull(1)
             ?.replace("&amp;", "&")
+            ?.replace("\\/", "/")
             ?.trim()
         if (!href.isNullOrBlank() && !href.equals("#")) {
             if (!href.startsWith("javascript", ignoreCase = true)) {
@@ -108,6 +122,7 @@ object ECourtParser {
             ?.groupValues
             ?.getOrNull(1)
             ?.replace("&amp;", "&")
+            ?.replace("\\/", "/")
             ?.trim()
             ?: return null
         val urlMatch = Regex("['\"]([^'\"]*\\?p=casestatus[^'\"]*)['\"]", RegexOption.IGNORE_CASE)

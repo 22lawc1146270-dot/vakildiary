@@ -26,8 +26,7 @@ class ECourtRepositoryImpl @Inject constructor(
                 return Result.Error("Failed to load eCourt session: ${response.code()}")
             }
             val html = response.body()?.string().orEmpty()
-            val token = ECourtHtmlParser.parseAppToken(html)
-                ?: return Result.Error("eCourt session token missing")
+            val token = ECourtHtmlParser.parseAppToken(html).orEmpty()
             val states = ECourtHtmlParser.parseStateOptions(html)
             Result.Success(ECourtSession(token = token, states = states))
         } catch (t: Throwable) {
