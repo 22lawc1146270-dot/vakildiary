@@ -48,6 +48,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -244,13 +245,53 @@ fun ReportableJudgmentScreen(
 
     when (val state = downloadState) {
         is ReportableDownloadUiState.Loading -> {
+            val hasTotal = state.totalBytes > 0L
+            val progress = if (hasTotal) {
+                (state.downloadedBytes.toFloat() / state.totalBytes.toFloat()).coerceIn(0f, 1f)
+            } else {
+                null
+            }
+            val percent = if (progress != null) (progress * 100f).roundToInt() else null
             AlertDialog(
                 onDismissRequest = {},
                 title = { Text(text = context.getString(R.string.reportable_judgment_title)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(text = context.getString(R.string.reportable_download_in_progress))
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        if (progress != null) {
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = context.getString(
+                                    R.string.reportable_downloaded_of_total,
+                                    formatBytes(state.downloadedBytes),
+                                    formatBytes(state.totalBytes)
+                                )
+                            )
+                            Text(
+                                text = context.getString(
+                                    R.string.reportable_download_percent,
+                                    percent ?: 0
+                                )
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Text(
+                                text = context.getString(
+                                    R.string.reportable_downloaded,
+                                    formatBytes(state.downloadedBytes)
+                                )
+                            )
+                        }
                     }
                 },
                 confirmButton = {}
@@ -287,6 +328,19 @@ fun ReportableJudgmentScreen(
         }
 
         else -> Unit
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 0L) return "--"
+    val kb = 1024.0
+    val mb = kb * 1024.0
+    val gb = mb * 1024.0
+    return when {
+        bytes >= gb -> String.format("%.2f GB", bytes / gb)
+        bytes >= mb -> String.format("%.2f MB", bytes / mb)
+        bytes >= kb -> String.format("%.2f KB", bytes / kb)
+        else -> "$bytes B"
     }
 }
 

@@ -101,6 +101,9 @@
     <string name="reportable_judgment_title">Reportable Judgment</string>
     <string name="reportable_download_success">Reportable PDF downloaded. You can view it in Documents.</string>
     <string name="reportable_download_in_progress">Downloading reportable PDF...</string>
+    <string name="reportable_downloaded_of_total">Downloaded: %1$s / %2$s</string>
+    <string name="reportable_downloaded">Downloaded: %1$s</string>
+    <string name="reportable_download_percent">%1$d%%</string>
     <string name="reportable_download_failed_title">Download failed</string>
     <string name="reportable_case_type">Select case type</string>
     <string name="reportable_case_number">Case Number*</string>

@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 @HiltViewModel
@@ -88,7 +90,7 @@ class ReportableJudgmentViewModel @Inject constructor(
         }
         if (_downloadState.value is ReportableDownloadUiState.Loading) return
         viewModelScope.launch {
-            _downloadState.value = ReportableDownloadUiState.Loading
+            _downloadState.value = ReportableDownloadUiState.Loading()
             _downloadState.value = withContext(Dispatchers.IO) {
                 when (val result = submitFormRequest(input)) {
                     is Result.Success -> downloadReportablePdf(
@@ -118,7 +120,7 @@ class ReportableJudgmentViewModel @Inject constructor(
     ) {
         if (downloadUrl.isBlank() || _downloadState.value is ReportableDownloadUiState.Loading) return
         viewModelScope.launch {
-            _downloadState.value = ReportableDownloadUiState.Loading
+            _downloadState.value = ReportableDownloadUiState.Loading()
             _downloadState.value = withContext(Dispatchers.IO) {
                 downloadReportablePdf(
                     downloadUrl = downloadUrl,
@@ -191,8 +193,39 @@ class ReportableJudgmentViewModel @Inject constructor(
     ): ReportableDownloadUiState {
         return try {
             val body = backendService.downloadReportable(downloadUrl)
+            val totalBytes = body.contentLength().takeIf { it > 0L } ?: -1L
+            _downloadState.value = ReportableDownloadUiState.Loading(
+                downloadedBytes = 0L,
+                totalBytes = totalBytes
+            )
+            val pdfBytes = body.use { responseBody ->
+                val output = ByteArrayOutputStream()
+                responseBody.byteStream().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var downloadedBytes = 0L
+                    var lastEmitAt = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        if (read == 0) continue
+                        output.write(buffer, 0, read)
+                        downloadedBytes += read
+                        val now = System.currentTimeMillis()
+                        val shouldEmit = now - lastEmitAt >= 120L ||
+                            (totalBytes > 0L && downloadedBytes >= totalBytes)
+                        if (shouldEmit) {
+                            _downloadState.value = ReportableDownloadUiState.Loading(
+                                downloadedBytes = downloadedBytes,
+                                totalBytes = totalBytes
+                            )
+                            lastEmitAt = now
+                        }
+                    }
+                }
+                output.toByteArray()
+            }
             val safeFileName = fileName ?: "reportable_${judgmentId}.pdf"
-            val mimeType = body.contentType()?.toString() ?: "application/pdf"
+            val mimeType = "application/pdf"
             val tags = DocumentTags.buildJudgmentTags(
                 judgmentId = judgmentId,
                 year = year,
@@ -205,7 +238,7 @@ class ReportableJudgmentViewModel @Inject constructor(
                 caseId = null,
                 fileName = safeFileName,
                 mimeType = mimeType,
-                inputStreamProvider = { body.byteStream() },
+                inputStreamProvider = { ByteArrayInputStream(pdfBytes) },
                 isScanned = false,
                 tags = tags
             )) {
@@ -244,7 +277,10 @@ sealed interface ReportableFormUiState {
 
 sealed interface ReportableDownloadUiState {
     object Idle : ReportableDownloadUiState
-    object Loading : ReportableDownloadUiState
+    data class Loading(
+        val downloadedBytes: Long = 0L,
+        val totalBytes: Long = -1L
+    ) : ReportableDownloadUiState
     data class Success(val document: Document) : ReportableDownloadUiState
     data class Error(val message: String) : ReportableDownloadUiState
 }
